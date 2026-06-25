@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+web/.next/
+web/out/
+web/build/
+web/next-env.d.ts
+
+# Production
+dist/
+build/
+
+# Environment
+.env
+.env*.local
+.env.local
+
+# Python / crawler
+crawler/.venv/
+crawler/venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+crawler/output/
+
+# Logs & misc
+*.log
+npm-debug.log*
+.DS_Store
+*.pem
+.vercel
+coverage/
+
+# Editor
+.idea/
+.vscode/
