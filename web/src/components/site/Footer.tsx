@@ -1,11 +1,12 @@
 import Link from "next/link";
+import { SITE } from "@/lib/site";
 
 export function Footer() {
   return (
     <footer className="mt-16 border-t border-stone-200 bg-stone-50">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3">
         <div>
-          <p className="font-bold text-emerald-800">Equine Directory</p>
+          <p className="font-bold text-emerald-800">{SITE.name}</p>
           <p className="mt-2 text-sm text-stone-500">
             The trusted directory of equine businesses & services. Florida-first, expanding
             nationwide.
@@ -27,7 +28,7 @@ export function Footer() {
         </div>
       </div>
       <div className="border-t border-stone-200 py-4 text-center text-xs text-stone-400">
-        © {new Date().getFullYear()} Equine Directory
+        © {new Date().getFullYear()} {SITE.name}
       </div>
     </footer>
   );

@@ -14,8 +14,12 @@ import { robots, isHubIndexable } from "@/lib/seo/indexing";
 export const revalidate = 86400;
 
 export async function generateStaticParams() {
-  const slugs = await getAllCategorySlugs();
-  return slugs.map((category) => ({ category }));
+  try {
+    const slugs = await getAllCategorySlugs();
+    return slugs.map((category) => ({ category }));
+  } catch {
+    return [];
+  }
 }
 
 export async function generateMetadata({

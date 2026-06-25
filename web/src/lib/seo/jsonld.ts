@@ -2,8 +2,9 @@
 import type { BusinessDetail } from "@/lib/db/business";
 import { absoluteUrl, businessUrl } from "@/lib/urls";
 import { showRating } from "@/lib/format";
+import { SITE } from "@/lib/site";
 
-const SITE_NAME = "Equine Directory";
+const SITE_NAME = SITE.name;
 
 export function organizationLd() {
   return {

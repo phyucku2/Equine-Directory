@@ -16,12 +16,17 @@ import { robots, isBusinessDetailIndexable } from "@/lib/seo/indexing";
 export const revalidate = 3600;
 
 export async function generateStaticParams() {
-  const businesses = await prisma.business.findMany({
-    where: { isPublished: true },
-    select: { slug: true },
-    take: 500,
-  });
-  return businesses.map((b) => ({ slug: b.slug }));
+  try {
+    const businesses = await prisma.business.findMany({
+      where: { isPublished: true },
+      select: { slug: true },
+      take: 500,
+    });
+    return businesses.map((b) => ({ slug: b.slug }));
+  } catch {
+    // DB unreachable at build time — fall back to on-demand ISR.
+    return [];
+  }
 }
 
 export async function generateMetadata({

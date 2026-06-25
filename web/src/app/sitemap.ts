@@ -98,14 +98,19 @@ async function locationsSitemap(): Promise<MetadataRoute.Sitemap> {
 }
 
 export default async function sitemap({ id }: { id: string }): Promise<MetadataRoute.Sitemap> {
-  switch (id) {
-    case "businesses":
-      return businessesSitemap();
-    case "categories":
-      return categoriesSitemap();
-    case "locations":
-      return locationsSitemap();
-    default:
-      return [];
+  try {
+    switch (id) {
+      case "businesses":
+        return await businessesSitemap();
+      case "categories":
+        return await categoriesSitemap();
+      case "locations":
+        return await locationsSitemap();
+      default:
+        return [];
+    }
+  } catch {
+    // DB unreachable at build — emit an empty sitemap; it regenerates via ISR.
+    return [];
   }
 }

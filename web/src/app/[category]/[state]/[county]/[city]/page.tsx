@@ -18,13 +18,17 @@ export const revalidate = 3600;
 type Params = { category: string; state: string; county: string; city: string };
 
 export async function generateStaticParams() {
-  const combos = await getIntentCombos(200);
-  return combos.map((c) => ({
-    category: c.category,
-    state: c.state,
-    county: c.county,
-    city: c.city,
-  }));
+  try {
+    const combos = await getIntentCombos(200);
+    return combos.map((c) => ({
+      category: c.category,
+      state: c.state,
+      county: c.county,
+      city: c.city,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 async function load(p: Params) {
