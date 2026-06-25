@@ -10,7 +10,9 @@ export function Pagination({
   totalPages: number;
 }) {
   if (totalPages <= 1) return null;
-  const href = (p: number) => (p <= 1 ? basePath : `${basePath}?page=${p}`);
+  // basePath may already contain a query string (e.g. /search?q=ocala).
+  const sep = basePath.includes("?") ? "&" : "?";
+  const href = (p: number) => (p <= 1 ? basePath : `${basePath}${sep}page=${p}`);
   return (
     <nav className="mt-8 flex items-center justify-center gap-2" aria-label="Pagination">
       {page > 1 && (

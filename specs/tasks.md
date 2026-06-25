@@ -31,12 +31,14 @@
 - [x] T13 `[MVP]` Home page: search hero, featured, category tiles, top FL regions, claim CTA; `Organization`+`WebSite` JSON-LD
 
 ### Search & filtering
-- [ ] T14 `[MVP]` `GET /api/search` (Postgres FTS, ranked, paginated, cache headers)
-- [ ] T15 `[MVP]` `POST /api/filter` faceted (category/rating/location/radius-haversine)
-- [ ] T16 `[MVP]` `/search` results page: card grid + facet bar + chips + instant updates
-- [ ] T17 `[MVP]` Mobile faceted UX: horizontal bar + full-screen "More Filters"
+- [x] T14 `[MVP]` `GET /api/search` (Postgres FTS, ranked, paginated, cache headers)
+- [x] T15 `[MVP]` `POST /api/filter` faceted (category/rating/location/radius-haversine)
+- [x] T16 `[MVP]` `/search` results page: card grid + facet bar + chips + instant updates
+- [x] T17 `[MVP]` Mobile faceted UX: horizontal bar + full-screen "More Filters"
 
 ### SEO infrastructure
+- [ ] T18a `[MVP]` **noindex gate** (from workflow infographic "noindex check"): listing/hub pages render `robots: noindex,follow` unless confirmed (grade-3/claimed) + min content; only indexable pages enter sitemaps. Protects E-E-A-T / thin-content. Ties to grading.
+- [ ] T18b `[MVP]` Keyword-research pass → prioritize which category×city intent pages (T19) to pre-render; record target terms in `specs/`.
 - [ ] T18 `[MVP]` Split sitemaps + `/sitemap.xml` index + `robots.txt`
 - [ ] T19 `[MVP]` Programmatic intent pages `/[category]/[state]/[county]/[city]` (top-N static + ISR)
 - [ ] T20 `[MVP]` Edge middleware: legacy→canonical 301s; search rate-limit
@@ -60,7 +62,8 @@
 - [ ] T34 `[MVP]` Seed run → 2,000–3,000 FL listings; admin works moderation queue; verify ≥50%
 
 ### Deploy
-- [ ] T35 `[MVP]` Vercel project + Postgres (Neon/Supabase) env; deploy preview; CI build check (GitHub Actions)
+- [ ] T35 `[MVP]` Vercel project (dedicated, existing team) + Postgres (Neon/Supabase) env; deploy preview; CI build check (GitHub Actions)
+- [ ] T35b `[MVP]` QA/audit pass (run /code-review) as a release gate; Google Search Console verification + sitemap submission
 
 ## Phase 2 — Reviews, premium, regional growth
 - [ ] T36 Review submission + moderation (auto-approve mid, manual extremes)
