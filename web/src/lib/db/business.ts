@@ -150,3 +150,25 @@ export async function getFeatured(take = 6): Promise<BusinessCard[]> {
     take,
   });
 }
+
+export function countByCategory(categorySlug: string): Promise<number> {
+  return prisma.business.count({
+    where: {
+      isPublished: true,
+      categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: categorySlug } } },
+    },
+  });
+}
+
+export function countByLocation(locationId: string): Promise<number> {
+  return prisma.business.count({
+    where: {
+      isPublished: true,
+      OR: [
+        { locationId },
+        { location: { parentId: locationId } },
+        { location: { parent: { parentId: locationId } } },
+      ],
+    },
+  });
+}

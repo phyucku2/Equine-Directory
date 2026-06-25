@@ -2,11 +2,12 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCountyBySlug, getChildren } from "@/lib/db/location";
-import { getByLocation } from "@/lib/db/business";
+import { getByLocation, countByLocation } from "@/lib/db/business";
 import { countyUrl, cityUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { Pagination } from "@/components/Pagination";
+import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
 
@@ -18,9 +19,11 @@ export async function generateMetadata({
   const { state, county } = await params;
   const loc = await getCountyBySlug(state, county);
   if (!loc) return { title: "County not found" };
+  const count = await countByLocation(loc.id);
   return {
     title: `Equine businesses in ${loc.name}`,
     description: `Find equine businesses and services in ${loc.name}, Florida.`,
+    robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(countyUrl(state, county)) },
   };
 }

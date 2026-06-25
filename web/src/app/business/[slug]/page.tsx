@@ -11,6 +11,7 @@ import { VerificationBadge } from "@/components/business/VerificationBadge";
 import { StarRating } from "@/components/StarRating";
 import { JsonLd } from "@/components/JsonLd";
 import { localBusinessLd } from "@/lib/seo/jsonld";
+import { robots, isBusinessDetailIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 3600;
 
@@ -39,6 +40,7 @@ export async function generateMetadata({
   return {
     title,
     description,
+    robots: robots(isBusinessDetailIndexable(business)),
     alternates: { canonical: absoluteUrl(businessUrl(slug)) },
     openGraph: { title, description, type: "website" },
   };

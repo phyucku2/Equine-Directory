@@ -2,13 +2,14 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug, getAllCategorySlugs } from "@/lib/db/category";
-import { getByCategory } from "@/lib/db/business";
+import { getByCategory, countByCategory } from "@/lib/db/business";
 import { categoryUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd } from "@/lib/seo/jsonld";
+import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
 
@@ -26,9 +27,11 @@ export async function generateMetadata({
   const cat = await getCategoryBySlug(category);
   if (!cat) return { title: "Category not found" };
   const title = `${cat.name} in Florida`;
+  const count = await countByCategory(category);
   return {
     title,
     description: cat.description ?? `Find ${cat.name.toLowerCase()} across Florida.`,
+    robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(categoryUrl(category)) },
   };
 }
