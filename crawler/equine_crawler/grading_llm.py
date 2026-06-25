@@ -70,16 +70,20 @@ def _is_rate_limit(exc: Exception) -> bool:
 
 
 def _gemini(prompt: str, candidate_categories: list[str]) -> list[GradedCategory]:
-    import google.generativeai as genai
+    from google import genai  # current SDK (google-genai)
+    from google.genai import types
 
-    genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-    model = genai.GenerativeModel(
-        os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
-        system_instruction=_SYSTEM,
-        generation_config={"temperature": 0.1, "response_mime_type": "application/json"},
-    )
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     try:
-        resp = model.generate_content(prompt)
+        resp = client.models.generate_content(
+            model=os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=_SYSTEM,
+                temperature=0.1,
+                response_mime_type="application/json",
+            ),
+        )
     except Exception as exc:  # noqa: BLE001
         raise RateLimit(str(exc)) if _is_rate_limit(exc) else exc
     return _parse(resp.text or "{}", candidate_categories)
