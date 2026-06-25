@@ -43,6 +43,7 @@ if [ ! -f "$WEB/.env" ]; then
 DATABASE_URL="postgresql://$PG_USER:$PG_PASS@127.0.0.1:5432/$DB?schema=public"
 SHADOW_DATABASE_URL="postgresql://$PG_USER:$PG_PASS@127.0.0.1:5432/$SHADOW?schema=public"
 NEXT_PUBLIC_BASE_URL="http://localhost:3000"
+ADMIN_KEY="dev-admin-key"
 NODE_EXTRA_CA_CERTS="$CA"
 EOF
   log "wrote web/.env"

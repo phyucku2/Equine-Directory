@@ -45,12 +45,12 @@
 - [x] T21 `[MVP]` `next.config.ts`: image allowlist/AVIF/WebP, security headers, sitemap rewrites
 
 ### Trust: claim, reviews-read, grading & moderation
-- [ ] T22 `[MVP]` `POST /api/businesses/[id]/claim`: create `ClaimRequest`, email token
-- [ ] T23 `[MVP]` Claim UI + `/claim/verify?token=` → set `VERIFIED`, show badge
-- [ ] T24 `[MVP]` Render approved reviews + `aggregateRating` (≥3) + review JSON-LD
-- [ ] T25 `[MVP]` **Moderation queue API**: list/triage `BusinessCategory` where grade ∈ {1,2} & `reviewStatus=PENDING_REVIEW`
-- [ ] T26 `[MVP]` **Admin moderation UI** `/admin/review`: approve→grade 3, reject, recategorize; shows evidence quote
-- [ ] T27 `[MVP]` Publish gate in read queries: only grade-3 / approved category assignments are publicly listed
+- [x] T22 `[MVP]` `POST /api/businesses/[id]/claim`: create `ClaimRequest`, email token
+- [x] T23 `[MVP]` Claim UI + `/claim/verify?token=` → set `VERIFIED`, show badge
+- [x] T24 `[MVP]` Render approved reviews + `aggregateRating` (≥3) + review JSON-LD
+- [x] T25 `[MVP]` **Moderation queue API**: list/triage `BusinessCategory` where grade ∈ {1,2} & `reviewStatus=PENDING_REVIEW`
+- [x] T26 `[MVP]` **Admin moderation UI** `/admin/review`: approve→grade 3, reject, recategorize; shows evidence quote
+- [x] T27 `[MVP]` Publish gate in read queries: only grade-3 / approved category assignments are publicly listed
 
 ### Crawler MVP (seed density)
 - [ ] T28 `[MVP]` Crawler scaffolding: `registry.py`, Pydantic `schemas.py`, `pipeline/` stubs, `CrawlJob` writes
