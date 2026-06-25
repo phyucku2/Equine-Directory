@@ -1,0 +1,34 @@
+import Link from "next/link";
+import { SITE } from "@/lib/site";
+
+export function Header() {
+  return (
+    <header className="sticky top-0 z-40 border-b border-stone-200 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
+        <Link href="/" className="flex items-center gap-2 font-bold text-emerald-800">
+          <svg viewBox="0 0 24 24" className="h-7 w-7" fill="currentColor" aria-hidden>
+            <path d="M5 3c1 3 2 4 4 4 1.5 0 2-1 4-1 3 0 5 3 5 7 0 4-2 8-6 8-1.5 0-2.5-1-2.5-2.5 0-2 2-2.5 2-4.5 0-1-1-2-2.5-2S8 11 8 13c0 3 2 4 2 6 0 1-1 2-2.5 2C4 21 3 16 3 11c0-4 1-6 2-8z" />
+          </svg>
+          <span className="text-lg">{SITE.name}</span>
+        </Link>
+        <nav className="flex items-center gap-1 text-sm font-medium text-stone-600 sm:gap-4">
+          <Link href="/categories" className="hidden hover:text-emerald-700 sm:inline">
+            Categories
+          </Link>
+          <Link href="/locations/florida" className="hidden hover:text-emerald-700 sm:inline">
+            Florida
+          </Link>
+          <Link href="/search" className="hover:text-emerald-700">
+            Search
+          </Link>
+          <Link
+            href="/claim"
+            className="rounded-lg bg-emerald-700 px-3 py-1.5 text-white transition hover:bg-emerald-800"
+          >
+            List your business
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}

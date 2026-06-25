@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash scripts/setup-dev.sh && (cd web && bash -c 'source .devenv 2>/dev/null; npx prisma migrate deploy >/dev/null 2>&1 || true')"
+          }
+        ]
+      }
+    ]
+  }
+}

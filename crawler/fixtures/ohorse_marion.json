@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Oak Hill Equestrian Center",
+    "address": "8800 NW 110th Ave, Ocala, FL 34482",
+    "phone": "(352) 555-0210",
+    "website": "oakhillequestrian.example.com",
+    "description": "Premier boarding facility offering full board and pasture board. Boarding available with stalls, daily turnout, and two arenas. Board rate from $700/month.",
+    "candidate_categories": ["horse-boarding", "trainer-instructor"],
+    "source_url": "https://www.ohorse.com/horse-boarding/florida/marion-county/",
+    "external_id": "ohorse:oak-hill-equestrian"
+  },
+  {
+    "name": "Pegasus Riding Academy",
+    "address": "4521 SE 80th St, Ocala, FL 34480",
+    "phone": "(352) 555-0233",
+    "website": "pegasusriding.example.com",
+    "description": "We offer riding lessons and horse training for all levels. Dressage and hunter/jumper coaching with weekly clinics.",
+    "candidate_categories": ["trainer-instructor", "horse-boarding"],
+    "source_url": "https://www.ohorse.com/horse-trainers/florida/marion-county/",
+    "external_id": "ohorse:pegasus-riding"
+  },
+  {
+    "name": "Sleepy Hollow Farm",
+    "address": "12000 W Hwy 326, Reddick, FL 32686",
+    "phone": "(352) 555-0244",
+    "website": "sleepyhollowfarm.example.com",
+    "description": "A quiet 40-acre farm with several stalls, a barn, and a riding arena. Family owned for 20 years.",
+    "candidate_categories": ["horse-boarding"],
+    "source_url": "https://www.ohorse.com/horse-boarding/florida/marion-county/",
+    "external_id": "ohorse:sleepy-hollow"
+  },
+  {
+    "name": "Marion Feed & Supply",
+    "address": "300 NW 10th St, Ocala, FL 34475",
+    "phone": "(352) 555-0255",
+    "website": "marionfeed.example.com",
+    "description": "Your local feed store. Horse feed, hay for sale, grain, shavings and bedding. Bulk forage available.",
+    "candidate_categories": ["feed-forage"],
+    "source_url": "https://www.ohorse.com/horse-boarding/florida/marion-county/",
+    "external_id": "ohorse:marion-feed"
+  },
+  {
+    "name": "Citra Pasture Holdings LLC",
+    "address": "9000 N Hwy 301, Citra, FL 32113",
+    "phone": "(352) 555-0266",
+    "website": "citrapasture.example.com",
+    "description": "Land management and cattle grazing operation in north Marion County.",
+    "candidate_categories": ["horse-boarding"],
+    "source_url": "https://www.ohorse.com/horse-boarding/florida/marion-county/",
+    "external_id": "ohorse:citra-pasture"
+  },
+  {
+    "name": "Williston Hoof Care",
+    "address": "150 SW 1st Ave, Williston, FL 32696",
+    "phone": "(352) 555-0277",
+    "website": "willistonhoofcare.example.com",
+    "description": "Certified farrier providing horseshoeing, corrective shoeing, and barefoot trimming across Levy and Marion counties.",
+    "candidate_categories": ["farrier"],
+    "source_url": "https://www.ohorse.com/farriers/florida/marion-county/",
+    "external_id": "ohorse:williston-hoof"
+  }
+]

@@ -1,0 +1,69 @@
+"""Seed-source registry.
+
+Each source declares where to crawl, how to extract rows (a crawl4ai
+JsonCssExtractionStrategy schema), and which candidate category slugs its
+listings imply (to be graded downstream). Keep politeness conservative and
+respect each site's robots.txt / ToS (constitution 2.5).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Any
+
+
+@dataclass(frozen=True)
+class Source:
+    key: str
+    name: str
+    urls: list[str]
+    # crawl4ai JsonCssExtractionStrategy schema (baseSelector + fields).
+    css_schema: dict[str, Any]
+    candidate_categories: list[str]
+    delay_seconds: float = 2.0
+    max_concurrency: int = 3
+    respect_robots: bool = True
+
+
+# A directory-style source: one row per listing card. Selectors are illustrative
+# and should be confirmed against the live markup before a production run.
+OHORSE = Source(
+    key="ohorse",
+    name="O Horse! County Directory",
+    urls=[
+        # Example county directory pages (boarding/training/services).
+        "https://www.ohorse.com/horse-boarding/florida/marion-county/",
+        "https://www.ohorse.com/horse-trainers/florida/marion-county/",
+    ],
+    css_schema={
+        "name": "ohorse_listing",
+        "baseSelector": "div.listing, li.directory-item",
+        "fields": [
+            {"name": "name", "selector": "h3, .listing-title, a", "type": "text"},
+            {"name": "address", "selector": ".address, .listing-address", "type": "text"},
+            {"name": "phone", "selector": ".phone, .tel", "type": "text"},
+            {"name": "website", "selector": "a.website, a[href^='http']", "type": "attribute", "attribute": "href"},
+            {"name": "description", "selector": ".description, .listing-desc", "type": "text"},
+        ],
+    },
+    candidate_categories=["horse-boarding", "trainer-instructor"],
+)
+
+# Offline fixture source used for the dry run / CI (no network, no API key).
+FIXTURES = Source(
+    key="fixtures",
+    name="Local fixtures",
+    urls=["file://fixtures/ohorse_marion.html"],
+    css_schema=OHORSE.css_schema,
+    candidate_categories=["horse-boarding", "trainer-instructor", "feed-forage"],
+    delay_seconds=0.0,
+)
+
+
+REGISTRY: dict[str, Source] = {s.key: s for s in [OHORSE, FIXTURES]}
+
+
+def get_source(key: str) -> Source:
+    if key not in REGISTRY:
+        raise KeyError(f"unknown source '{key}'. Known: {', '.join(REGISTRY)}")
+    return REGISTRY[key]

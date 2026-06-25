@@ -1,0 +1,314 @@
+// Equine Directory — Prisma schema
+// Florida-first equine business directory, national-scale data model.
+// See specs/design-dossier.md §4 and specs/spec.md (category grading) for rationale.
+
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ─────────────────────────── Enums ───────────────────────────
+
+enum LocationType {
+  COUNTRY
+  STATE
+  COUNTY
+  CITY
+}
+
+enum ClaimStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum VerificationBadge {
+  UNVERIFIED
+  VERIFIED
+  TRUSTED
+  PREMIUM
+}
+
+enum ImageSource {
+  CRAWLER
+  OWNER
+  GOOGLE
+}
+
+enum DeliveryModel {
+  IN_PERSON
+  MOBILE
+  ONLINE
+  HYBRID
+}
+
+// Category-assignment grading (crawl4ai LLM verification over the business website).
+// 3 = CONFIRMED (auto-publish), 2 = UNSURE (human review), 1 = NOT/no evidence (human review).
+enum CategoryGrade {
+  GRADE_1_NOT // no evidence the business is in this category
+  GRADE_2_UNSURE // suggestive but inconclusive
+  GRADE_3_CONFIRMED // explicit evidence found
+}
+
+// How a category grade was determined.
+enum GradeSource {
+  CRAWL_INFERRED // keyword/heuristic match during crawl
+  LLM_EXTRACTION // crawl4ai LLM extraction over the business site
+  OWNER_CLAIMED // the owner claimed/confirmed the listing
+  STAFF_VERIFIED // a human moderator confirmed
+}
+
+// Moderation routing for a category assignment.
+enum ReviewStatus {
+  AUTO_APPROVED // grade 3 — published automatically
+  PENDING_REVIEW // grade 1 or 2 — awaiting human triage
+  APPROVED // human promoted to published
+  REJECTED // human rejected this category for the business
+}
+
+// ─────────────────────────── Core models ───────────────────────────
+
+model Business {
+  id          String  @id @default(cuid())
+  name        String  @db.VarChar(255)
+  slug        String  @unique
+  description String?
+  phone       String? @db.VarChar(32)
+  email       String? @db.VarChar(255)
+  website     String? @db.VarChar(512)
+
+  // Address / geo
+  address       String  @db.VarChar(512)
+  streetAddress String? @db.VarChar(255)
+  postalCode    String? @db.VarChar(16)
+  latitude      Float
+  longitude     Float
+
+  // Location (denormalized to city for fast filtering)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  // Metadata
+  hoursOfOperation Json?
+  amenities        String[]      @default([])
+  deliveryModel    DeliveryModel @default(IN_PERSON)
+  serviceRadiusMi  Int?
+  yearsInOperation Int?
+  attributes       Json? // category-specific fields (boardingTypes, disciplines, credentials, ...)
+  socialLinks      Json?
+  paymentMethods   String[]      @default([])
+
+  // Derived trust / ratings
+  rating            Decimal?          @db.Decimal(3, 2)
+  reviewCount       Int               @default(0)
+  responseRate      Decimal?          @db.Decimal(5, 2)
+  isVerified        Boolean           @default(false)
+  verificationBadge VerificationBadge @default(UNVERIFIED)
+  isFeatured        Boolean           @default(false)
+  featuredUntil     DateTime?
+
+  // Publication: a business is publicly listed once it has >=1 published (grade-3/approved) category
+  isPublished Boolean @default(false)
+
+  // Relations
+  categories BusinessCategory[]
+  reviews    Review[]
+  claims     ClaimRequest[]
+  images     BusinessImage[]
+  seo        SeoMetadata?
+
+  // Crawler / audit
+  dataSourceUrl    String?
+  externalSourceId String? // dedup key from source
+  lastCrawledAt    DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@unique([name, latitude, longitude]) // coarse dedup guard
+  @@index([locationId])
+  @@index([slug])
+  @@index([latitude, longitude])
+  @@index([isFeatured, rating])
+  @@index([isPublished])
+}
+
+model Location {
+  id          String       @id @default(cuid())
+  type        LocationType
+  name        String       @db.VarChar(255)
+  slug        String       @db.VarChar(255)
+  code        String?      @db.VarChar(16) // "FL", FIPS, etc.
+  parentId    String?
+  parent      Location?    @relation("LocationHierarchy", fields: [parentId], references: [id])
+  children    Location[]   @relation("LocationHierarchy")
+  latitude    Float?
+  longitude   Float?
+  boundingBox Json?
+  description String?
+  businesses  Business[]
+  seo         SeoMetadata?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([slug, type, parentId])
+  @@index([parentId])
+  @@index([type])
+}
+
+model Category {
+  id          String             @id @default(cuid())
+  name        String             @unique @db.VarChar(255)
+  slug        String             @unique @db.VarChar(255)
+  description String?
+  icon        String?
+  parentId    String? // null = top-level, else subcategory
+  parent      Category?          @relation("CategoryTree", fields: [parentId], references: [id])
+  children    Category[]         @relation("CategoryTree")
+  businesses  BusinessCategory[]
+  seo         SeoMetadata?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([slug])
+  @@index([parentId])
+}
+
+// Join table carrying the per-category GRADE + evidence + moderation state.
+model BusinessCategory {
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  isPrimary  Boolean  @default(false)
+  rank       Int      @default(0)
+
+  // ── Grading & moderation (see specs/spec.md) ──
+  grade         CategoryGrade @default(GRADE_2_UNSURE)
+  gradeSource   GradeSource   @default(CRAWL_INFERRED)
+  confidence    Decimal?      @db.Decimal(4, 3) // 0.000–1.000 from the extractor
+  evidenceQuote String?       @db.VarChar(1024) // quoted proof from the business site
+  reviewStatus  ReviewStatus  @default(PENDING_REVIEW)
+  reviewedBy    String? // moderator email / "owner" / "system"
+  reviewedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@id([businessId, categoryId])
+  @@index([categoryId])
+  @@index([reviewStatus])
+  @@index([grade])
+}
+
+model Review {
+  id               String    @id @default(cuid())
+  businessId       String
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  authorName       String    @db.VarChar(255)
+  authorEmail      String?   @db.VarChar(255)
+  rating           Int       @db.SmallInt // 1..5
+  title            String?   @db.VarChar(255)
+  content          String
+  ownerResponse    String?
+  ownerRespondedAt DateTime?
+  isApproved       Boolean   @default(false)
+  isSpam           Boolean   @default(false)
+  isVerifiedAuthor Boolean   @default(false) // phone-verified reviewer
+  flagCount        Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([businessId])
+  @@index([isApproved])
+}
+
+model ClaimRequest {
+  id                 String      @id @default(cuid())
+  businessId         String
+  business           Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  ownerName          String      @db.VarChar(255)
+  ownerEmail         String      @db.VarChar(255)
+  ownerPhone         String?     @db.VarChar(32)
+  status             ClaimStatus @default(PENDING)
+  verificationMethod String? // "email" | "phone" | "registration"
+  verificationToken  String?     @unique
+  verificationSentAt DateTime?
+  verifiedAt         DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  @@index([businessId])
+  @@index([status])
+}
+
+model BusinessImage {
+  id         String      @id @default(cuid())
+  businessId String
+  business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  url        String      @db.VarChar(512)
+  altText    String?     @db.VarChar(255)
+  caption    String?     @db.VarChar(512)
+  width      Int?
+  height     Int?
+  rank       Int         @default(0)
+  source     ImageSource @default(CRAWLER)
+  uploadedAt DateTime    @default(now())
+
+  @@index([businessId])
+}
+
+model SeoMetadata {
+  id             String    @id @default(cuid())
+  businessId     String?   @unique
+  business       Business? @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  categoryId     String?   @unique
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  locationId     String?   @unique
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  title          String    @db.VarChar(70)
+  description    String    @db.VarChar(200)
+  keywords       String?   @db.VarChar(255)
+  ogTitle        String?   @db.VarChar(255)
+  ogDescription  String?   @db.VarChar(200)
+  ogImage        String?   @db.VarChar(512)
+  structuredData Json?
+  robots         String?   @default("index,follow")
+  canonical      String?   @db.VarChar(512)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model CrawlJob {
+  id            String    @id @default(cuid())
+  sourceKey     String // "ohorse", "florida-horse-mag", ...
+  url           String    @db.VarChar(512)
+  status        String    @default("pending") // pending|running|success|failed
+  resumeState   Json? // crawl4ai deep-crawl checkpoint
+  itemsFound    Int       @default(0)
+  itemsUpserted Int       @default(0)
+  error         String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([sourceKey])
+  @@index([status])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String // BUSINESS_CREATED, REVIEW_APPROVED, CLAIM_VERIFIED, CATEGORY_GRADED, ...
+  entityType  String
+  entityId    String
+  details     Json?
+  performedBy String // "crawler" | admin email | owner email
+  createdAt   DateTime @default(now())
+
+  @@index([entityType])
+  @@index([createdAt])
+}
