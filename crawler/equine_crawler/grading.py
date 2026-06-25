@@ -12,7 +12,6 @@ Two backends:
 
 from __future__ import annotations
 
-import os
 import re
 from typing import Iterable
 
@@ -109,7 +108,12 @@ def _find_sentence(texts: Iterable[str], needle: str) -> str | None:
 
 
 def llm_available() -> bool:
-    return bool(os.environ.get("OPENAI_API_KEY"))
+    try:
+        from .grading_llm import any_provider_available
+
+        return any_provider_available()
+    except Exception:
+        return False
 
 
 def grade_listing(

@@ -4,3 +4,9 @@ psycopg[binary]>=3.2
 python-dotenv>=1.0
 pydantic>=2.7
 tenacity>=8.3
+
+# LLM grading providers (optional — only needed for LLM grading, not the
+# heuristic. Gemini is primary, Claude is the fallback).
+google-generativeai>=0.8
+anthropic>=0.40
+# openai>=1.40   # optional third fallback

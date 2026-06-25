@@ -74,12 +74,20 @@ queue at `/admin/review`.
 
 ## Environment
 
-| Var                  | Purpose                                             |
-| -------------------- | --------------------------------------------------- |
-| `DATABASE_URL`       | Postgres connection (same DB Prisma owns).          |
-| `OPENAI_API_KEY`     | Enables LLM grading (optional; heuristic otherwise).|
-| `GRADING_MODEL`      | LLM model for grading (default `gpt-4o-mini`).      |
-| `REVALIDATE_URL`     | Web `/api/revalidate` endpoint to ping after a run. |
-| `REVALIDATE_SECRET`  | Shared secret for the revalidate endpoint.          |
+| Var                  | Purpose                                                       |
+| -------------------- | ------------------------------------------------------------- |
+| `DATABASE_URL`       | Postgres connection (same DB Prisma owns).                    |
+| `GRADING_PROVIDERS`  | Fallback order (default `gemini,anthropic,openai`).           |
+| `GEMINI_API_KEY`     | Gemini grading (primary). `GEMINI_MODEL` default `gemini-2.0-flash`. |
+| `ANTHROPIC_API_KEY`  | Claude grading (fallback). `ANTHROPIC_MODEL` default `claude-haiku-4-5-20251001`. |
+| `OPENAI_API_KEY`     | Optional third fallback. `GRADING_MODEL` default `gpt-4o-mini`.|
+| `REVALIDATE_URL`     | Web `/api/revalidate` endpoint to ping after a run.           |
+| `REVALIDATE_SECRET`  | Shared secret for the revalidate endpoint.                    |
+
+**LLM grading & fallback.** Providers are tried in `GRADING_PROVIDERS` order.
+On a rate-limit/quota error (or any failure) the next provider is used; if all
+fail, the deterministic keyword heuristic runs so a crawl never hard-stops.
+With a Gemini and a Claude key set, Gemini grades until it hits limits, then
+Claude takes over automatically.
 
 See `specs/plan.md` and `specs/design-dossier.md` §6 for the full architecture.
