@@ -21,6 +21,16 @@ export function cityUrl(stateSlug: string, countySlug: string, citySlug: string)
   return `/locations/${stateSlug}/${countySlug}/${citySlug}`;
 }
 
+// Programmatic intent page: e.g. /horse-boarding/florida/marion/ocala
+export function intentUrl(
+  categorySlug: string,
+  stateSlug: string,
+  countySlug: string,
+  citySlug: string,
+): string {
+  return `/${categorySlug}/${stateSlug}/${countySlug}/${citySlug}`;
+}
+
 export function absoluteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   return `${base.replace(/\/$/, "")}${path}`;

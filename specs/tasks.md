@@ -38,10 +38,10 @@
 
 ### SEO infrastructure
 - [x] T18a `[MVP]` **noindex gate** (from workflow infographic "noindex check"): listing/hub pages render `robots: noindex,follow` unless confirmed (grade-3/claimed) + min content; only indexable pages enter sitemaps. Protects E-E-A-T / thin-content. Ties to grading.
-- [ ] T18b `[MVP]` Keyword-research pass → prioritize which category×city intent pages (T19) to pre-render; record target terms in `specs/`.
+- [x] T18b `[MVP]` Keyword-research pass → prioritize which category×city intent pages (T19) to pre-render; record target terms in `specs/`.
 - [x] T18 `[MVP]` Split sitemaps + `/sitemap.xml` index + `robots.txt`
-- [ ] T19 `[MVP]` Programmatic intent pages `/[category]/[state]/[county]/[city]` (top-N static + ISR)
-- [ ] T20 `[MVP]` Edge middleware: legacy→canonical 301s; search rate-limit
+- [x] T19 `[MVP]` Programmatic intent pages `/[category]/[state]/[county]/[city]` (top-N static + ISR)
+- [x] T20 `[MVP]` Edge middleware: legacy→canonical 301s; search rate-limit
 - [x] T21 `[MVP]` `next.config.ts`: image allowlist/AVIF/WebP, security headers, sitemap rewrites
 
 ### Trust: claim, reviews-read, grading & moderation
