@@ -53,12 +53,12 @@
 - [x] T27 `[MVP]` Publish gate in read queries: only grade-3 / approved category assignments are publicly listed
 
 ### Crawler MVP (seed density)
-- [ ] T28 `[MVP]` Crawler scaffolding: `registry.py`, Pydantic `schemas.py`, `pipeline/` stubs, `CrawlJob` writes
-- [ ] T29 `[MVP]` Tier-2 source: O Horse! county listings via `JsonCssExtractionStrategy` (polite)
-- [ ] T30 `[MVP]` **Grading extractor**: `LLMExtractionStrategy` over business site → `{grade, evidenceQuote, confidence, categoryFields}` per category
-- [ ] T31 `[MVP]` Normalize + dedup (`pg_trgm`) + geocode + map to `Location`; upsert `Business`/`BusinessCategory` with grade routing
+- [x] T28 `[MVP]` Crawler scaffolding: `registry.py`, Pydantic `schemas.py`, `pipeline/` stubs, `CrawlJob` writes
+- [x] T29 `[MVP]` Tier-2 source: O Horse! county listings via `JsonCssExtractionStrategy` (polite)
+- [x] T30 `[MVP]` **Grading extractor**: `LLMExtractionStrategy` over business site → `{grade, evidenceQuote, confidence, categoryFields}` per category
+- [x] T31 `[MVP]` Normalize + dedup (`pg_trgm`) + geocode + map to `Location`; upsert `Business`/`BusinessCategory` with grade routing
 - [ ] T32 `[MVP]` Tier-1/2 sources: USDA county data, Florida Horse Mag PDF, FTBOA registry
-- [ ] T33 `[MVP]` `POST /api/revalidate` (secret-guarded `revalidateTag`); crawler pings after batch
+- [x] T33 `[MVP]` `POST /api/revalidate` (secret-guarded `revalidateTag`); crawler pings after batch
 - [ ] T34 `[MVP]` Seed run → 2,000–3,000 FL listings; admin works moderation queue; verify ≥50%
 
 ### Deploy
