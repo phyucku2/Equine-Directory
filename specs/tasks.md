@@ -14,9 +14,9 @@
 ## Phase 1 — MVP (Florida launch)
 
 ### Data model
-- [ ] T1 `[MVP]` Add Prisma + `lib/prisma.ts` singleton; `DATABASE_URL`; Docker Postgres for dev
-- [ ] T2 `[MVP]` Author full `schema.prisma` (dossier §4) **incl. grading fields on `BusinessCategory`**; `migrate dev --name init`
-- [ ] T3 `[MVP]` Follow-up SQL migration: FTS GIN index + `pg_trgm` + name trigram index
+- [x] T1 `[MVP]` Add Prisma + `lib/prisma.ts` singleton; `DATABASE_URL`; Docker Postgres for dev
+- [x] T2 `[MVP]` Author full `schema.prisma` (dossier §4) **incl. grading fields on `BusinessCategory`**; `migrate dev --name init`
+- [x] T3 `[MVP]` Follow-up SQL migration: FTS GIN index + `pg_trgm` + name trigram index
 - [ ] T4 `[MVP]` Seed: Country(US) → FL → FL counties → top FL cities
 - [ ] T5 `[MVP]` Seed top-level categories + Phase-1 subcategories (boarding, training, vet, farrier, dentistry, instruction)
 
