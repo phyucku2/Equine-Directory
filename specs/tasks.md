@@ -17,8 +17,8 @@
 - [x] T1 `[MVP]` Add Prisma + `lib/prisma.ts` singleton; `DATABASE_URL`; Docker Postgres for dev
 - [x] T2 `[MVP]` Author full `schema.prisma` (dossier §4) **incl. grading fields on `BusinessCategory`**; `migrate dev --name init`
 - [x] T3 `[MVP]` Follow-up SQL migration: FTS GIN index + `pg_trgm` + name trigram index
-- [ ] T4 `[MVP]` Seed: Country(US) → FL → FL counties → top FL cities
-- [ ] T5 `[MVP]` Seed top-level categories + Phase-1 subcategories (boarding, training, vet, farrier, dentistry, instruction)
+- [x] T4 `[MVP]` Seed: Country(US) → FL → FL counties → top FL cities
+- [x] T5 `[MVP]` Seed top-level categories + Phase-1 subcategories (boarding, training, vet, farrier, dentistry, instruction)
 
 ### Core read pages
 - [ ] T6 `[MVP]` `lib/db/business.ts`: `getBusinessBySlug`, `getByCategory`, `getByLocation` (paginated, published-only)
