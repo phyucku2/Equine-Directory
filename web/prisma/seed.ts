@@ -1,6 +1,7 @@
 import { PrismaClient, LocationType } from "@prisma/client";
 import { CATEGORIES } from "./seed/categories";
 import { FLORIDA, COUNTIES, CITIES } from "./seed/locations";
+import { seedSampleBusinesses } from "./seed/sample-businesses";
 
 const prisma = new PrismaClient();
 
@@ -131,6 +132,9 @@ async function main() {
   console.log("Seeding Equine Directory...");
   await seedLocations();
   await seedCategories();
+  if (process.env.SEED_SAMPLES) {
+    await seedSampleBusinesses(prisma);
+  }
   console.log("Seed complete.");
 }
 

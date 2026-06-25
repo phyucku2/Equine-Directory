@@ -21,14 +21,14 @@
 - [x] T5 `[MVP]` Seed top-level categories + Phase-1 subcategories (boarding, training, vet, farrier, dentistry, instruction)
 
 ### Core read pages
-- [ ] T6 `[MVP]` `lib/db/business.ts`: `getBusinessBySlug`, `getByCategory`, `getByLocation` (paginated, published-only)
-- [ ] T7 `[MVP]` Listing detail `/business/[slug]` (ISR 3600): trust card, core info, services, description, related
-- [ ] T8 `[MVP]` `LocalBusiness` JSON-LD + `generateMetadata` on listing
-- [ ] T9 `[MVP]` `BusinessCard` component (mobile-first, 44px targets, lazy image)
-- [ ] T10 `[MVP]` Category hub `/categories/[category]` (static params + ISR) + `CollectionPage`/`BreadcrumbList` JSON-LD
-- [ ] T11 `[MVP]` Location hubs `/locations/[state]`, `/[state]/[county]`, `/[state]/[county]/[city]`
-- [ ] T12 `[MVP]` Schema-aware `Breadcrumbs` component
-- [ ] T13 `[MVP]` Home page: search hero, featured, category tiles, top FL regions, claim CTA; `Organization`+`WebSite` JSON-LD
+- [x] T6 `[MVP]` `lib/db/business.ts`: `getBusinessBySlug`, `getByCategory`, `getByLocation` (paginated, published-only)
+- [x] T7 `[MVP]` Listing detail `/business/[slug]` (ISR 3600): trust card, core info, services, description, related
+- [x] T8 `[MVP]` `LocalBusiness` JSON-LD + `generateMetadata` on listing
+- [x] T9 `[MVP]` `BusinessCard` component (mobile-first, 44px targets, lazy image)
+- [x] T10 `[MVP]` Category hub `/categories/[category]` (static params + ISR) + `CollectionPage`/`BreadcrumbList` JSON-LD
+- [x] T11 `[MVP]` Location hubs `/locations/[state]`, `/[state]/[county]`, `/[state]/[county]/[city]`
+- [x] T12 `[MVP]` Schema-aware `Breadcrumbs` component
+- [x] T13 `[MVP]` Home page: search hero, featured, category tiles, top FL regions, claim CTA; `Organization`+`WebSite` JSON-LD
 
 ### Search & filtering
 - [ ] T14 `[MVP]` `GET /api/search` (Postgres FTS, ranked, paginated, cache headers)
