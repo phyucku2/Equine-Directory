@@ -61,6 +61,8 @@ def normalize(raw: RawListing) -> RawListing:
         phone=clean_phone(raw.phone),
         website=clean_url(raw.website),
         description=clean_text(raw.description),
+        latitude=raw.latitude,
+        longitude=raw.longitude,
         candidate_categories=raw.candidate_categories,
         source_url=raw.source_url,
         external_id=raw.external_id,

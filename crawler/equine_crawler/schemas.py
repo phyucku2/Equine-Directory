@@ -37,6 +37,10 @@ class RawListing(BaseModel):
     phone: str | None = None
     website: str | None = None
     description: str | None = None
+    # Exact coordinates when the source provides them (e.g. Google Places);
+    # falls back to the seeded city centroid during geocoding.
+    latitude: float | None = None
+    longitude: float | None = None
     # Candidate category slugs proposed by the source (to be graded).
     candidate_categories: list[str] = Field(default_factory=list)
     source_url: str | None = None

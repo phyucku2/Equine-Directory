@@ -89,7 +89,11 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     skipped += 1
                     print(f"  skip (no location): {n.name} [{n.city}]")
                     continue
-                location_id, lat, lng = loc
+                location_id, clat, clng = loc
+                # Prefer the source's exact coordinates (Google Places) over the
+                # city centroid so map dots land on the actual stable.
+                lat = n.latitude if n.latitude is not None else clat
+                lng = n.longitude if n.longitude is not None else clng
 
                 if source.kind == "places":
                     # Google returned this for a category-targeted search, so the

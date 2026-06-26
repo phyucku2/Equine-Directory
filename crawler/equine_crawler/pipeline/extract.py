@@ -25,6 +25,7 @@ _PLACES_FIELDS = ",".join(
         "places.displayName",
         "places.formattedAddress",
         "places.addressComponents",
+        "places.location",
         "places.nationalPhoneNumber",
         "places.websiteUri",
         "places.editorialSummary",
@@ -84,6 +85,7 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                     if category not in cats:
                         cats.append(category)
                     continue
+                loc = p.get("location") or {}
                 by_id[pid] = RawListing(
                     name=name,
                     address=p.get("formattedAddress"),
@@ -91,6 +93,8 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                     phone=p.get("nationalPhoneNumber"),
                     website=p.get("websiteUri"),
                     description=(p.get("editorialSummary") or {}).get("text"),
+                    latitude=loc.get("latitude"),
+                    longitude=loc.get("longitude"),
                     candidate_categories=[category],
                     source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
                     external_id=f"google:{pid}",
