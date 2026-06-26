@@ -151,9 +151,9 @@ export function MapView() {
     const icon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 7,
-      fillColor: "#1f8a5b",
+      fillColor: "#3b82f6",
       fillOpacity: 1,
-      strokeColor: "#16181d",
+      strokeColor: "#ffffff",
       strokeWeight: 2,
     };
     const markers = filtered.map((s) => {

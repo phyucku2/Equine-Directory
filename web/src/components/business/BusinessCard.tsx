@@ -42,7 +42,7 @@ export function BusinessCard({ business }: { business: BusinessCardData }) {
 
       <div className="flex flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="line-clamp-2 min-h-[2.5rem] font-serif text-lg font-semibold text-pine group-hover:text-brass">
+          <h3 className="line-clamp-2 min-h-[2.5rem] text-lg font-semibold text-pine group-hover:text-brass">
             {business.name}
           </h3>
         </div>

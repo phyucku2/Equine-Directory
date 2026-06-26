@@ -19,7 +19,7 @@ function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) 
   return (
     <div className="mb-7">
       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brass">{eyebrow}</p>
-      <h2 className="mt-1 font-serif text-3xl font-semibold text-pine">{title}</h2>
+      <h2 className="mt-1 text-3xl font-semibold text-pine">{title}</h2>
     </div>
   );
 }
@@ -92,7 +92,7 @@ export default async function HomePage() {
                   className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="font-serif text-lg font-semibold text-pine">{cat.name}</h3>
+                    <h3 className="text-lg font-semibold text-pine">{cat.name}</h3>
                     {count > 0 && (
                       <span className="rounded-full bg-pine/5 px-2 py-0.5 text-xs font-medium text-pine">
                         {count}
@@ -116,7 +116,7 @@ export default async function HomePage() {
                 href={cityUrl("florida", r.county, r.name.toLowerCase())}
                 className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
               >
-                <h3 className="font-serif text-lg font-semibold text-pine">{r.name}</h3>
+                <h3 className="text-lg font-semibold text-pine">{r.name}</h3>
                 <p className="mt-1 text-sm text-ink/55">{r.desc}</p>
               </Link>
             ))}

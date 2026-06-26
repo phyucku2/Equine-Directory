@@ -93,7 +93,7 @@ export default async function BusinessPage({
           <div className="rounded-2xl border border-leather/15 bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="font-serif text-2xl font-semibold text-pine sm:text-3xl">{business.name}</h1>
+                <h1 className="text-2xl font-semibold text-pine sm:text-3xl">{business.name}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <VerificationBadge badge={business.verificationBadge} />
                   {business.isFeatured && (
@@ -144,7 +144,7 @@ export default async function BusinessPage({
           {/* Description */}
           {business.description && (
             <section className="mt-6">
-              <h2 className="font-serif text-lg font-semibold text-pine">About</h2>
+              <h2 className="text-lg font-semibold text-pine">About</h2>
               <p className="mt-2 whitespace-pre-line text-ink/70">{business.description}</p>
             </section>
           )}
@@ -152,7 +152,7 @@ export default async function BusinessPage({
           {/* Amenities */}
           {amenities.length > 0 && (
             <section className="mt-6">
-              <h2 className="font-serif text-lg font-semibold text-pine">Facilities &amp; amenities</h2>
+              <h2 className="text-lg font-semibold text-pine">Facilities &amp; amenities</h2>
               <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {amenities.map((a) => (
                   <li
@@ -169,7 +169,7 @@ export default async function BusinessPage({
 
           {/* Reviews */}
           <section className="mt-8">
-            <h2 className="font-serif text-lg font-semibold text-pine">Reviews</h2>
+            <h2 className="text-lg font-semibold text-pine">Reviews</h2>
             {business.reviews.length === 0 ? (
               <p className="mt-2 text-sm text-ink/55">No reviews yet.</p>
             ) : (
@@ -226,7 +226,7 @@ export default async function BusinessPage({
       {/* Related */}
       {related.length > 0 && (
         <section className="mt-12">
-          <h2 className="mb-5 font-serif text-xl font-semibold text-pine">
+          <h2 className="mb-5 text-xl font-semibold text-pine">
             Other stables in {business.location.name}
           </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">

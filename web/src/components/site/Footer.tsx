@@ -6,7 +6,7 @@ export function Footer() {
     <footer className="mt-16 border-t border-leather/15 bg-cream-dark">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-3">
         <div>
-          <p className="font-serif text-lg font-semibold text-pine">{SITE.name}</p>
+          <p className="text-lg font-semibold tracking-tight text-pine">{SITE.name}</p>
           <p className="mt-2 text-sm text-ink/55">
             The directory of horse stables. Florida-first, expanding nationwide.
           </p>

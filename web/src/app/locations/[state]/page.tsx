@@ -35,7 +35,7 @@ export default async function StatePage({ params }: { params: Promise<{ state: s
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <Breadcrumbs items={[{ name: "Home", url: "/" }, { name: loc.name, url: stateUrl(state) }]} />
-      <h1 className="mt-4 font-serif text-3xl font-semibold text-pine">Horse stables across {loc.name}</h1>
+      <h1 className="mt-4 text-3xl font-semibold text-pine">Horse stables across {loc.name}</h1>
       <p className="mt-1 text-ink/55">Browse by county.</p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {counties.map((c) => (

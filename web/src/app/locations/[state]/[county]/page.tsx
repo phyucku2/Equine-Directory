@@ -55,7 +55,7 @@ export default async function CountyPage({
           { name: loc.name, url: countyUrl(state, county) },
         ]}
       />
-      <h1 className="mt-4 font-serif text-3xl font-semibold text-pine">Horse stables in {loc.name}</h1>
+      <h1 className="mt-4 text-3xl font-semibold text-pine">Horse stables in {loc.name}</h1>
       <p className="mt-1 text-ink/55">
         {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
