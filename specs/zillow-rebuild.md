@@ -60,6 +60,25 @@ city centers.
 5. **Bottom tab bar** (v1: Search/Map · Browse · Saved · List your barn).
 6. **Saved** stables via localStorage (no auth needed for v1).
 
+## Filters (Zillow "Filters" screen → our adaptation)
+Zillow's filter sheet: segmented type toggle (For sale/rent/sold), **Price range**
+with a histogram + dual-handle slider + Min/Max inputs, **Reset** (top-right), and a
+live **"See N results"** button that updates as you adjust. Map it to us:
+
+| Zillow filter | Our filter |
+|---|---|
+| For sale / rent / sold (segmented) | **Service type** segmented: All · Boarding · Training · Farrier · Vet · Tack · Feed |
+| Price range (histogram + slider) | **Distance** slider ("within X mi" + "near me"); **$-level** ($–$$$$) *when we add pricing* |
+| (beds/baths/lot) | **Amenities** checkboxes: arena (indoor/outdoor), # stalls, turnout, wash rack, trailer parking, trails |
+| — | **Rating** (4★+ / 3★+), **Verified only** toggle |
+| Save Search | Save Search (Phase 2) |
+| **See 47 results** | **See N stables** — live count via the existing `/api/filter`, then apply |
+
+Notes: we have **no price field yet**, so lead the slider with **distance** (most
+relevant for stables) and add **$-level** once owners set it (a Pro-tier input).
+Filters live as a **bottom sheet** on mobile; chips summarize active filters on the
+map/search header.
+
 ## Not now (Phase 2)
 Alerts/saved-search engine, Inbox/messaging (lead-gen), account-backed favorites,
 draw-your-own-boundary search.
