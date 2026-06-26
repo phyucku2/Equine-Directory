@@ -49,8 +49,8 @@ export default async function HomePage() {
             Find the right stable for your horse
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-cream/75">
-            Browse and compare horse stables across Florida — boarding, training, and facilities,
-            all in one place.
+            Browse and compare horse stables and barns near you across Florida — boarding,
+            training, and facilities, all in one place.
           </p>
           <form action="/search" className="mx-auto mt-9 flex max-w-xl gap-2">
             <input
