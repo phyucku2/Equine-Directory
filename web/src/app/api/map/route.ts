@@ -16,12 +16,13 @@ export async function GET() {
       rating: true,
       reviewCount: true,
       isFeatured: true,
+      verificationBadge: true,
       location: { select: { name: true } },
       categories: {
         where: PUBLIC_CATEGORY_WHERE,
-        select: { category: { select: { name: true } } },
+        select: { category: { select: { slug: true, name: true } } },
         orderBy: [{ isPrimary: "desc" }, { rank: "asc" }],
-        take: 1,
+        take: 6,
       },
       images: { select: { url: true }, orderBy: { rank: "asc" }, take: 1 },
     },
@@ -36,10 +37,12 @@ export async function GET() {
       name: b.name,
       city: b.location?.name ?? "",
       category: b.categories[0]?.category.name ?? "",
+      categorySlugs: b.categories.map((c) => c.category.slug),
       rating: b.rating != null ? Number(b.rating) : null,
       reviewCount: b.reviewCount,
       image: b.images[0]?.url ?? null,
       featured: b.isFeatured,
+      verified: b.verificationBadge !== "UNVERIFIED",
     },
   }));
 
