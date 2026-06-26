@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getFeatured } from "@/lib/db/business";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { NearbyStables } from "@/components/home/NearbyStables";
 import { cityUrl } from "@/lib/urls";
 
 export const revalidate = 3600;
@@ -87,6 +88,9 @@ export default async function HomePage() {
             </div>
           </section>
         )}
+
+        {/* Stables near you (geo-aware; hides itself when nothing is close) */}
+        <NearbyStables />
 
         {/* Top regions */}
         <section className="py-14">
