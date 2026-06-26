@@ -46,18 +46,18 @@ export default async function HomePage() {
             Florida-first · Expanding nationwide
           </p>
           <h1 className="mt-4 font-serif text-4xl font-semibold tracking-tight sm:text-6xl">
-            Find the right barn for your horse
+            Find the right stable for your horse
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-cream/75">
-            Browse and compare horse barns across Florida — boarding, training, and facilities,
+            Browse and compare horse stables across Florida — boarding, training, and facilities,
             all in one place.
           </p>
           <form action="/search" className="mx-auto mt-9 flex max-w-xl gap-2">
             <input
               type="search"
               name="q"
-              placeholder="Search barns by name, city, or county…"
-              aria-label="Search barns"
+              placeholder="Search stables by name, city, or county…"
+              aria-label="Search stables"
               className="w-full rounded-lg border-0 px-4 py-3 text-ink shadow-lg focus:outline-none focus:ring-2 focus:ring-brass-light"
             />
             <button
@@ -74,7 +74,7 @@ export default async function HomePage() {
         {/* Featured */}
         {featured.length > 0 && (
           <section className="py-14">
-            <SectionHeading eyebrow="Handpicked" title="Featured barns" />
+            <SectionHeading eyebrow="Handpicked" title="Featured stables" />
             <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {featured.map((b) => (
                 <BusinessCard key={b.id} business={b} />
@@ -133,16 +133,16 @@ export default async function HomePage() {
         <section className="relative my-14 overflow-hidden rounded-3xl bg-pine px-6 py-14 text-center text-cream">
           <div className="bg-grain absolute inset-0 opacity-60" />
           <div className="relative">
-            <h2 className="font-serif text-3xl font-semibold">Own a barn?</h2>
+            <h2 className="font-serif text-3xl font-semibold">Own a stable?</h2>
             <p className="mx-auto mt-3 max-w-xl text-cream/75">
-              Add or claim your barn&rsquo;s free listing to manage your details and photos, and
+              Add or claim your stable&rsquo;s free listing to manage your details and photos, and
               reach horse owners looking for a place to board and ride.
             </p>
             <Link
               href="/claim"
               className="mt-7 inline-block rounded-lg bg-brass px-6 py-3 font-semibold text-pine transition hover:bg-brass-light"
             >
-              List your barn
+              List your stable
             </Link>
           </div>
         </section>

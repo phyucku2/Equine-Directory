@@ -30,7 +30,7 @@ const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
   title: {
-    default: `${SITE.name} — Horse Barn Directory`,
+    default: `${SITE.name} — Horse Stable Directory`,
     template: `%s | ${SITE.name}`,
   },
   description: SITE.description,

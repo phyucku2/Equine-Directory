@@ -22,7 +22,7 @@ export function Header() {
             href="/claim"
             className="rounded-lg bg-pine px-3 py-1.5 text-cream transition hover:bg-pine-light"
           >
-            List your barn
+            List your stable
           </Link>
         </nav>
       </div>
