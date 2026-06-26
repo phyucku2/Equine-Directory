@@ -34,15 +34,12 @@ export default async function HomePage() {
         {/* Background photo (loaded by the visitor's browser) */}
         <div
           className="absolute inset-0 -z-10 bg-cover bg-center"
-          style={{
-            backgroundImage:
-              "url('https://images.pexels.com/photos/18781356/pexels-photo-18781356.jpeg?auto=compress&cs=tinysrgb&w=1920')",
-          }}
+          style={{ backgroundImage: "url('/hero-stable.jpg')" }}
           aria-hidden
         />
         {/* Legibility overlay so the white text stays readable over the photo */}
         <div
-          className="absolute inset-0 -z-10 bg-gradient-to-b from-black/65 via-black/45 to-black/65"
+          className="absolute inset-0 -z-10 bg-gradient-to-b from-black/60 via-black/50 to-black/65"
           aria-hidden
         />
         <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:py-28">
