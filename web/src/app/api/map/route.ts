@@ -7,7 +7,12 @@ export const revalidate = 300;
 // GET /api/map — lightweight GeoJSON of published stables for the map view.
 export async function GET() {
   const rows = await prisma.business.findMany({
-    where: { isPublished: true },
+    // V1: stables/barns only (boarding facilities). Other crawled categories
+    // (farrier/vet/tack/feed/trainer) stay in the DB, just hidden for now.
+    where: {
+      isPublished: true,
+      categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: "horse-boarding" } } },
+    },
     select: {
       slug: true,
       name: true,

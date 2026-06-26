@@ -10,7 +10,6 @@ type StableMarker = {
   name: string;
   city: string;
   category: string;
-  categorySlugs: string[];
   rating: number | null;
   reviewCount: number;
   image: string | null;
@@ -41,17 +40,6 @@ const STYLE: maplibregl.StyleSpecification = {
 };
 const DEFAULT_CENTER: [number, number] = [-80.25, 26.12]; // Broward / South FL
 const DEFAULT_ZOOM = 9;
-
-const CATEGORY_CHIPS: { slug: string | null; label: string }[] = [
-  { slug: null, label: "All" },
-  { slug: "horse-boarding", label: "Boarding" },
-  { slug: "trainer-instructor", label: "Training" },
-  { slug: "farrier", label: "Farriers" },
-  { slug: "equine-veterinarian", label: "Vets" },
-  { slug: "tack-shop", label: "Tack" },
-  { slug: "feed-forage", label: "Feed" },
-];
-
 const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -96,7 +84,6 @@ function MiniCard({ s }: { s: StableMarker }) {
       </div>
       <div className="min-w-0 flex-1">
         <p className="truncate font-serif text-sm font-semibold text-pine">{s.name}</p>
-        {s.category && <p className="truncate text-xs text-ink/55">{s.category}</p>}
         <p className="truncate text-xs text-ink/55">{s.city}</p>
         <div className="mt-0.5">
           <Stars rating={s.rating} count={s.reviewCount} />
@@ -113,8 +100,8 @@ export function MapView() {
 
   const [items, setItems] = useState<StableMarker[]>([]);
   const [loading, setLoading] = useState(true);
+  const [mapError, setMapError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<string | null>(null);
   const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -124,16 +111,14 @@ export function MapView() {
     const q = query.trim().toLowerCase();
     return items.filter(
       (s) =>
-        (!category || s.categorySlugs.includes(category)) &&
         (!q || `${s.name} ${s.city}`.toLowerCase().includes(q)) &&
         (minRating == null || (s.rating ?? 0) >= minRating) &&
         (!verifiedOnly || s.verified),
     );
-  }, [items, query, category, minRating, verifiedOnly]);
+  }, [items, query, minRating, verifiedOnly]);
 
   const activeFilters = (minRating != null ? 1 : 0) + (verifiedOnly ? 1 : 0);
 
-  // Init map once.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -146,7 +131,12 @@ export function MapView() {
       zoom: DEFAULT_ZOOM,
     });
     mapRef.current = map;
-    map.on("error", (e) => console.error("[map]", e?.error?.message ?? e));
+    map.on("error", (e) => {
+      const msg = e?.error?.message ?? "unknown map error";
+      console.error("[map]", msg);
+      // Ignore transient single-tile failures; surface anything else.
+      if (!/tile|abort/i.test(msg)) setMapError(msg);
+    });
 
     const setup = (data: StableMarker[]) => {
       if (cancelled || map.getSource("stables")) return;
@@ -191,9 +181,8 @@ export function MapView() {
         map.easeTo({ center: (f[0].geometry as any).coordinates, zoom });
       });
       map.on("click", "point", (e) => {
-        const f = e.features?.[0];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const c = (f?.geometry as any)?.coordinates;
+        const c = (e.features?.[0]?.geometry as any)?.coordinates;
         if (c) map.flyTo({ center: c, zoom: Math.max(map.getZoom(), 12) });
       });
       for (const layer of ["clusters", "point"]) {
@@ -240,7 +229,6 @@ export function MapView() {
     };
   }, []);
 
-  // Push filtered set to the map.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
@@ -250,71 +238,63 @@ export function MapView() {
 
   const nearMe = () => {
     if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 11 });
-    });
-  };
-
-  const resetFilters = () => {
-    setMinRating(null);
-    setVerifiedOnly(false);
-    setCategory(null);
+    navigator.geolocation.getCurrentPosition((pos) =>
+      mapRef.current?.flyTo({ center: [pos.coords.longitude, pos.coords.latitude], zoom: 11 }),
+    );
   };
 
   return (
-    <div className="relative h-[calc(100dvh-3.5rem)] min-h-[420px] w-full overflow-hidden bg-cream-dark">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-cream-dark">
       <div ref={containerRef} className="absolute inset-0" />
 
-      {/* TOP: search + filter button, then category chips */}
-      <div className="absolute inset-x-0 top-0 z-20 space-y-2 p-2">
-        <div className="flex gap-2">
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            type="search"
-            placeholder="Search stables by name or city…"
-            aria-label="Search stables"
-            className="w-full rounded-full border border-leather/15 bg-white px-4 py-2.5 text-sm shadow focus:outline-none focus:ring-2 focus:ring-brass"
-          />
-          <button
-            onClick={() => setShowFilters(true)}
-            aria-label="Filters"
-            className="relative shrink-0 rounded-full border border-leather/15 bg-white px-3 shadow"
-          >
-            <svg viewBox="0 0 24 24" className="h-5 w-5 text-pine" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
-            </svg>
-            {activeFilters > 0 && (
-              <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brass text-[10px] font-bold text-pine">
-                {activeFilters}
-              </span>
-            )}
-          </button>
+      {/* On-screen error readout (diagnostic) */}
+      {mapError && (
+        <div className="absolute bottom-2 left-2 right-2 z-40 rounded-lg bg-red-900/90 px-3 py-2 text-xs text-white">
+          Map error: {mapError}
         </div>
-        <div className={`flex gap-2 overflow-x-auto ${NO_SCROLLBAR}`}>
-          {CATEGORY_CHIPS.map((c) => {
-            const active = category === c.slug;
-            return (
-              <button
-                key={c.label}
-                onClick={() => setCategory(c.slug)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium shadow ${
-                  active ? "bg-pine text-cream" : "bg-white text-pine"
-                }`}
-              >
-                {c.label}
-              </button>
-            );
-          })}
-        </div>
+      )}
+
+      {/* TOP: home + search + filter */}
+      <div className="absolute inset-x-0 top-0 z-20 flex gap-2 p-2">
+        <Link
+          href="/"
+          aria-label="Home"
+          className="flex shrink-0 items-center rounded-full border border-leather/15 bg-white px-3 text-pine shadow"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5 text-brass" fill="currentColor" aria-hidden>
+            <path d="M5 3c1 3 2 4 4 4 1.5 0 2-1 4-1 3 0 5 3 5 7 0 4-2 8-6 8-1.5 0-2.5-1-2.5-2.5 0-2 2-2.5 2-4.5 0-1-1-2-2.5-2S8 11 8 13c0 3 2 4 2 6 0 1-1 2-2.5 2C4 21 3 16 3 11c0-4 1-6 2-8z" />
+          </svg>
+        </Link>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          type="search"
+          placeholder="Search stables by name or city…"
+          aria-label="Search stables"
+          className="w-full rounded-full border border-leather/15 bg-white px-4 py-2.5 text-sm shadow focus:outline-none focus:ring-2 focus:ring-brass"
+        />
+        <button
+          onClick={() => setShowFilters(true)}
+          aria-label="Filters"
+          className="relative shrink-0 rounded-full border border-leather/15 bg-white px-3 shadow"
+        >
+          <svg viewBox="0 0 24 24" className="h-5 w-5 text-pine" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 6h16M7 12h10M10 18h4" strokeLinecap="round" />
+          </svg>
+          {activeFilters > 0 && (
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-brass text-[10px] font-bold text-pine">
+              {activeFilters}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Near-me button */}
+      {/* Near-me */}
       {view === "map" && (
         <button
           onClick={nearMe}
           aria-label="Near me"
-          className="absolute bottom-40 right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-pine shadow"
+          className="absolute bottom-44 right-3 z-20 flex h-10 w-10 items-center justify-center rounded-full bg-white text-pine shadow"
         >
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
             <circle cx="12" cy="12" r="3" />
@@ -323,7 +303,7 @@ export function MapView() {
         </button>
       )}
 
-      {/* BOTTOM preview window: count + swipeable cards */}
+      {/* BOTTOM preview window */}
       {view === "map" && (
         <div className="absolute inset-x-0 bottom-0 z-20 pb-2">
           <div className="flex items-center justify-between px-3 py-1.5">
@@ -352,10 +332,10 @@ export function MapView() {
         </div>
       )}
 
-      {/* LIST full view */}
+      {/* LIST view */}
       {view === "list" && (
-        <div className="absolute inset-0 z-20 overflow-y-auto bg-cream p-3 pt-20">
-          <div className="sticky -top-3 z-10 -mx-3 mb-2 flex items-center justify-between bg-cream/95 px-3 py-2 backdrop-blur">
+        <div className="absolute inset-0 z-20 overflow-y-auto bg-cream p-3 pt-16">
+          <div className="sticky top-0 z-10 -mx-3 mb-2 flex items-center justify-between bg-cream/95 px-3 py-2 backdrop-blur">
             <span className="text-sm font-medium text-pine">
               {filtered.length} stable{filtered.length === 1 ? "" : "s"}
             </span>
@@ -376,21 +356,20 @@ export function MapView() {
 
       {/* Filter sheet */}
       {showFilters && (
-        <div
-          className="absolute inset-0 z-30 flex items-end bg-black/30"
-          onClick={() => setShowFilters(false)}
-        >
-          <div
-            className="w-full rounded-t-2xl bg-cream p-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="absolute inset-0 z-30 flex items-end bg-black/30" onClick={() => setShowFilters(false)}>
+          <div className="w-full rounded-t-2xl bg-cream p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="font-serif text-lg font-semibold text-pine">Filters</h2>
-              <button onClick={resetFilters} className="text-sm font-medium text-brass">
+              <button
+                onClick={() => {
+                  setMinRating(null);
+                  setVerifiedOnly(false);
+                }}
+                className="text-sm font-medium text-brass"
+              >
                 Reset
               </button>
             </div>
-
             <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Rating</p>
             <div className="mt-2 flex gap-2">
               {[4, 3].map((r) => (
@@ -405,7 +384,6 @@ export function MapView() {
                 </button>
               ))}
             </div>
-
             <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink/55">Trust</p>
             <button
               onClick={() => setVerifiedOnly((v) => !v)}
@@ -416,7 +394,6 @@ export function MapView() {
               <span className={`h-3.5 w-3.5 rounded ${verifiedOnly ? "bg-brass" : "border border-leather/30"}`} />
               Verified only
             </button>
-
             <button
               onClick={() => setShowFilters(false)}
               className="mt-5 w-full rounded-lg bg-brass py-3 font-semibold text-pine transition hover:bg-brass-light"
