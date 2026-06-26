@@ -126,4 +126,9 @@ export const CITIES: CitySeed[] = [
   { name: "Newberry", slug: "newberry", countyFips: "001", lat: 29.6461, lng: -82.6068 },
   { name: "Dade City", slug: "dade-city", countyFips: "101", lat: 28.3649, lng: -82.1959 },
   { name: "Myakka City", slug: "myakka-city", countyFips: "081", lat: 27.3550, lng: -82.1709 },
+  // Broward — South Florida equestrian belt (Davie & neighbors)
+  { name: "Davie", slug: "davie", countyFips: "011", lat: 26.0765, lng: -80.2521 },
+  { name: "Southwest Ranches", slug: "southwest-ranches", countyFips: "011", lat: 26.0570, lng: -80.3270 },
+  { name: "Cooper City", slug: "cooper-city", countyFips: "011", lat: 26.0570, lng: -80.2717 },
+  { name: "Parkland", slug: "parkland", countyFips: "011", lat: 26.3104, lng: -80.2370 },
 ];

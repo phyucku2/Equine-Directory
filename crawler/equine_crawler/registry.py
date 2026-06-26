@@ -31,9 +31,9 @@ OHORSE = Source(
     key="ohorse",
     name="O Horse! County Directory",
     urls=[
-        # Example county directory pages (boarding/training/services).
-        "https://www.ohorse.com/horse-boarding/florida/marion-county/",
-        "https://www.ohorse.com/horse-trainers/florida/marion-county/",
+        # Broward County directory pages (Davie & the South FL equestrian belt).
+        "https://www.ohorse.com/horse-boarding/florida/broward-county/",
+        "https://www.ohorse.com/horse-trainers/florida/broward-county/",
     ],
     css_schema={
         "name": "ohorse_listing",
