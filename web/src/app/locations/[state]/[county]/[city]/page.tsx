@@ -20,8 +20,8 @@ export async function generateMetadata({
   if (!loc) return { title: "City not found" };
   const count = await countByLocation(loc.id);
   return {
-    title: `Equine businesses in ${loc.name}, FL`,
-    description: `Find boarding, training, vets, farriers and more in ${loc.name}, Florida.`,
+    title: `Horse Stables in ${loc.name}, FL`,
+    description: `Find horse stables and barns in ${loc.name}, Florida — boarding, training, and facilities near you.`,
     robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(cityUrl(state, county, city)) },
   };
@@ -54,14 +54,14 @@ export default async function CityPage({
           { name: loc.name, url: cityUrl(state, county, city) },
         ]}
       />
-      <h1 className="mt-4 text-3xl font-bold text-stone-900">Equine businesses in {loc.name}, FL</h1>
-      <p className="mt-1 text-stone-500">
-        {results.total} {results.total === 1 ? "listing" : "listings"}
+      <h1 className="mt-4 font-serif text-3xl font-semibold text-pine">Horse stables in {loc.name}, FL</h1>
+      <p className="mt-1 text-ink/55">
+        {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
 
       {results.items.length === 0 ? (
-        <p className="mt-12 rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
-          No listings here yet. We&apos;re actively adding Florida businesses — check back soon.
+        <p className="mt-12 rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">
+          No stables here yet. We&apos;re actively adding Florida stables — check back soon.
         </p>
       ) : (
         <>

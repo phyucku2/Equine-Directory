@@ -21,8 +21,8 @@ export async function generateMetadata({
   if (!loc) return { title: "County not found" };
   const count = await countByLocation(loc.id);
   return {
-    title: `Equine businesses in ${loc.name}`,
-    description: `Find equine businesses and services in ${loc.name}, Florida.`,
+    title: `Horse Stables in ${loc.name}, FL`,
+    description: `Find horse stables and barns in ${loc.name}, Florida — boarding, training, and facilities near you.`,
     robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(countyUrl(state, county)) },
   };
@@ -55,9 +55,9 @@ export default async function CountyPage({
           { name: loc.name, url: countyUrl(state, county) },
         ]}
       />
-      <h1 className="mt-4 text-3xl font-bold text-stone-900">Equine businesses in {loc.name}</h1>
-      <p className="mt-1 text-stone-500">
-        {results.total} {results.total === 1 ? "listing" : "listings"}
+      <h1 className="mt-4 font-serif text-3xl font-semibold text-pine">Horse stables in {loc.name}</h1>
+      <p className="mt-1 text-ink/55">
+        {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
 
       {cities.length > 0 && (
@@ -66,7 +66,7 @@ export default async function CountyPage({
             <Link
               key={c.id}
               href={cityUrl(state, county, c.slug)}
-              className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700 hover:bg-emerald-50 hover:text-emerald-800"
+              className="rounded-full bg-pine/5 px-3 py-1 text-sm text-pine hover:bg-brass/10 hover:text-brass"
             >
               {c.name}
             </Link>
@@ -75,8 +75,8 @@ export default async function CountyPage({
       )}
 
       {results.items.length === 0 ? (
-        <p className="mt-12 rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
-          No listings here yet. We&apos;re actively adding Florida businesses — check back soon.
+        <p className="mt-12 rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">
+          No stables here yet. We&apos;re actively adding Florida stables — check back soon.
         </p>
       ) : (
         <>

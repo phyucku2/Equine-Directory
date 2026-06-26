@@ -9,7 +9,7 @@ export interface Crumb {
 
 export function Breadcrumbs({ items }: { items: Crumb[] }) {
   return (
-    <nav aria-label="Breadcrumb" className="text-sm text-stone-500">
+    <nav aria-label="Breadcrumb" className="text-sm text-ink/55">
       <JsonLd data={breadcrumbLd(items)} />
       <ol className="flex flex-wrap items-center gap-1">
         {items.map((item, i) => {
@@ -17,15 +17,15 @@ export function Breadcrumbs({ items }: { items: Crumb[] }) {
           return (
             <li key={item.url} className="flex items-center gap-1">
               {isLast ? (
-                <span className="font-medium text-stone-700" aria-current="page">
+                <span className="font-medium text-pine" aria-current="page">
                   {item.name}
                 </span>
               ) : (
                 <>
-                  <Link href={item.url} className="hover:text-emerald-700 hover:underline">
+                  <Link href={item.url} className="hover:text-brass hover:underline">
                     {item.name}
                   </Link>
-                  <span aria-hidden className="text-stone-300">
+                  <span aria-hidden className="text-leather/30">
                     /
                   </span>
                 </>
