@@ -45,9 +45,22 @@ async def _crawl_live(source: Source, limit: int | None) -> list[RawListing]:
     async with AsyncWebCrawler() as crawler:
         for url in source.urls:
             result = await crawler.arun(url=url, config=config)
-            if not result.success or not result.extracted_content:
+            rows = (
+                json.loads(result.extracted_content)
+                if (result.success and result.extracted_content)
+                else []
+            )
+            html = getattr(result, "cleaned_html", "") or getattr(result, "html", "") or ""
+            print(
+                f"[debug] {url} success={result.success} rows={len(rows)} html_len={len(html)}",
+                flush=True,
+            )
+            if not rows:
+                # Selectors matched nothing — dump real markup so we can fix the
+                # css_schema (or detect a bot-block/captcha page).
+                print(f"[debug] cleaned_html[:7000] for {url}:\n{html[:7000]}\n[debug-end]", flush=True)
                 continue
-            for row in json.loads(result.extracted_content):
+            for row in rows:
                 if not row.get("name"):
                     continue
                 listings.append(
