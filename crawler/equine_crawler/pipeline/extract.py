@@ -48,51 +48,57 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
     if not api_key:
         raise RuntimeError("GOOGLE_MAPS_API_KEY is not set (see crawler/.env.example)")
 
-    seen: set[str] = set()
-    listings: list[RawListing] = []
-    for query in source.queries:
-        body = json.dumps({"textQuery": query, "regionCode": "US"}).encode()
-        req = urllib.request.Request(
-            _PLACES_ENDPOINT,
-            data=body,
-            method="POST",
-            headers={
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": api_key,
-                "X-Goog-FieldMask": _PLACES_FIELDS,
-            },
-        )
-        try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                data = json.loads(resp.read())
-        except Exception as exc:  # noqa: BLE001
-            print(f"[places] query failed {query!r}: {exc}", flush=True)
-            continue
-
-        places = data.get("places", [])
-        print(f"[places] {query!r} -> {len(places)} results", flush=True)
-        for p in places:
-            pid = p.get("id")
-            name = (p.get("displayName") or {}).get("text")
-            if not pid or pid in seen or not name:
+    by_id: dict[str, RawListing] = {}
+    order: list[str] = []
+    for phrase, category in source.query_specs:
+        for area in source.areas:
+            query = f"{phrase} {area}"
+            body = json.dumps({"textQuery": query, "regionCode": "US"}).encode()
+            req = urllib.request.Request(
+                _PLACES_ENDPOINT,
+                data=body,
+                method="POST",
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Goog-Api-Key": api_key,
+                    "X-Goog-FieldMask": _PLACES_FIELDS,
+                },
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    data = json.loads(resp.read())
+            except Exception as exc:  # noqa: BLE001
+                print(f"[places] query failed {query!r}: {exc}", flush=True)
                 continue
-            seen.add(pid)
-            listings.append(
-                RawListing(
+
+            places = data.get("places", [])
+            print(f"[places] {query!r} -> {len(places)} results", flush=True)
+            for p in places:
+                pid = p.get("id")
+                name = (p.get("displayName") or {}).get("text")
+                if not pid or not name:
+                    continue
+                if pid in by_id:
+                    # Same place surfaced by another category search — merge.
+                    cats = by_id[pid].candidate_categories
+                    if category not in cats:
+                        cats.append(category)
+                    continue
+                by_id[pid] = RawListing(
                     name=name,
                     address=p.get("formattedAddress"),
                     city=_places_city(p.get("addressComponents")),
                     phone=p.get("nationalPhoneNumber"),
                     website=p.get("websiteUri"),
                     description=(p.get("editorialSummary") or {}).get("text"),
-                    candidate_categories=list(source.candidate_categories),
+                    candidate_categories=[category],
                     source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
                     external_id=f"google:{pid}",
                 )
-            )
-            if limit and len(listings) >= limit:
-                return listings
-    return listings
+                order.append(pid)
+
+    listings = [by_id[pid] for pid in order]
+    return listings[:limit] if limit else listings
 
 
 def _load_fixtures(source: Source) -> list[RawListing]:

@@ -22,11 +22,15 @@ on:
       limit:
         description: "Max listings to pull"
         type: string
-        default: "25"
+        default: "200"
       use_llm:
-        description: "Use LLM grading (needs an API key secret)"
+        description: "Use LLM grading (ignored for places; needs an API key secret)"
         type: boolean
         default: false
+      seed:
+        description: "Seed taxonomy (categories + FL locations) into the DB first"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -55,6 +59,23 @@ jobs:
       - name: Install Chromium (ohorse live crawl only)
         if: ${{ inputs.source == 'ohorse' }}
         run: python -m playwright install --with-deps chromium
+
+      - uses: actions/setup-node@v4
+        if: ${{ inputs.seed }}
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Seed taxonomy (categories + FL locations)
+        if: ${{ inputs.seed }}
+        working-directory: web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma db seed
 
       - name: Run crawler
         env:

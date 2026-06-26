@@ -24,9 +24,11 @@ class Source:
     max_concurrency: int = 3
     respect_robots: bool = True
     # "crawl" = HTML scrape via crawl4ai; "places" = Google Places API;
-    # "fixtures" handled by key. `queries` holds Places text-search queries.
+    # "fixtures" handled by key.
     kind: str = "crawl"
-    queries: list[str] = field(default_factory=list)
+    # Places: search areas (text) x query_specs (phrase, category slug).
+    areas: list[str] = field(default_factory=list)
+    query_specs: list[tuple[str, str]] = field(default_factory=list)
 
 
 # A directory-style source: one row per listing card. Selectors are illustrative
@@ -72,16 +74,30 @@ PLACES = Source(
     name="Google Places",
     urls=[],
     css_schema={},
-    candidate_categories=["horse-boarding", "trainer-instructor"],
+    candidate_categories=["horse-boarding"],
     kind="places",
-    queries=[
-        "horse boarding Davie FL",
-        "horse stables Davie FL",
-        "horse boarding Southwest Ranches FL",
-        "horse stables Cooper City FL",
-        "horse stables Parkland FL",
-        "equestrian center Broward County FL",
-        "horse training Broward County FL",
+    areas=[
+        "Davie FL",
+        "Southwest Ranches FL",
+        "Cooper City FL",
+        "Parkland FL",
+        "Coconut Creek FL",
+        "Plantation FL",
+        "Coral Springs FL",
+        "Broward County FL",
+    ],
+    # (search phrase, category slug) — the slug matches the seeded taxonomy and
+    # is treated as confirmed evidence (Google returned it for that search).
+    query_specs=[
+        ("horse boarding", "horse-boarding"),
+        ("horse stables", "horse-boarding"),
+        ("equestrian center", "horse-boarding"),
+        ("horse trainer", "trainer-instructor"),
+        ("riding lessons", "trainer-instructor"),
+        ("horse farrier", "farrier"),
+        ("equine veterinarian", "equine-veterinarian"),
+        ("tack shop", "tack-shop"),
+        ("horse feed store", "feed-forage"),
     ],
 )
 
