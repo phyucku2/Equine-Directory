@@ -34,12 +34,26 @@ export default async function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="border-b border-leather/15 bg-cream-dark">
-        <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
-          <h1 className="text-4xl font-bold tracking-tight text-ink sm:text-5xl">
+      <section className="relative isolate overflow-hidden bg-pine">
+        {/* Background photo (loaded by the visitor's browser) */}
+        <div
+          className="absolute inset-0 -z-10 bg-cover bg-center"
+          style={{
+            backgroundImage:
+              "url('https://images.pexels.com/photos/5953664/pexels-photo-5953664.jpeg?auto=compress&cs=tinysrgb&w=1920')",
+          }}
+          aria-hidden
+        />
+        {/* Legibility overlay so the white text stays readable over any photo */}
+        <div
+          className="absolute inset-0 -z-10 bg-gradient-to-b from-black/70 via-black/55 to-black/70"
+          aria-hidden
+        />
+        <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:py-28">
+          <h1 className="text-4xl font-bold tracking-tight text-white drop-shadow-md sm:text-5xl">
             Find the right stable for your horse
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">
+          <p className="mx-auto mt-4 max-w-xl text-lg text-white/85">
             Browse and compare horse stables and barns near you across Florida.
           </p>
           <form action="/search" className="mx-auto mt-8 flex max-w-xl gap-2">
@@ -48,16 +62,19 @@ export default async function HomePage() {
               name="q"
               placeholder="Search stables by name or city…"
               aria-label="Search stables"
-              className="w-full rounded-lg border border-leather/30 bg-white px-4 py-3 text-ink focus:outline-none focus:ring-2 focus:ring-brass"
+              className="w-full rounded-lg border border-white/20 bg-white px-4 py-3 text-ink shadow-lg focus:outline-none focus:ring-2 focus:ring-brass"
             />
             <button
               type="submit"
-              className="rounded-lg bg-pine px-5 py-3 font-semibold text-cream transition hover:bg-pine-light"
+              className="rounded-lg bg-brass px-5 py-3 font-semibold text-white shadow-lg transition hover:bg-brass-light"
             >
               Search
             </button>
           </form>
-          <Link href="/map" className="mt-4 inline-block text-sm font-medium text-brass hover:underline">
+          <Link
+            href="/map"
+            className="mt-4 inline-block text-sm font-medium text-white/90 transition hover:text-white hover:underline"
+          >
             Or browse the map →
           </Link>
         </div>
