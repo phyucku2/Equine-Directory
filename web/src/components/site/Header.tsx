@@ -12,7 +12,10 @@ export function Header() {
           <span className="font-serif text-xl font-semibold">{SITE.name}</span>
         </Link>
         <nav className="flex items-center gap-1 text-sm font-medium text-ink/70 sm:gap-4">
-          <Link href="/locations/florida" className="hover:text-brass">
+          <Link href="/map" className="hover:text-brass">
+            Map
+          </Link>
+          <Link href="/locations/florida" className="hidden hover:text-brass sm:inline">
             Florida
           </Link>
           <Link href="/search" className="hover:text-brass">
