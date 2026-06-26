@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
 import { getCityBySlug } from "@/lib/db/location";
-import { getByCategoryAndLocation } from "@/lib/db/business";
+import { getByCategoryAndLocation, isStablesSlug } from "@/lib/db/business";
 import { getIntentCombos } from "@/lib/db/intent";
 import { intentUrl, categoryUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -20,7 +20,9 @@ type Params = { category: string; state: string; county: string; city: string };
 export async function generateStaticParams() {
   try {
     const combos = await getIntentCombos(200);
-    return combos.map((c) => ({
+    return combos
+      .filter((c) => isStablesSlug(c.category))
+      .map((c) => ({
       category: c.category,
       state: c.state,
       county: c.county,
@@ -62,6 +64,8 @@ export default async function IntentPage({
 }) {
   const p = await params;
   const { pageParam } = { pageParam: (await searchParams).page };
+  // V1: only stables/boarding hubs are public.
+  if (!isStablesSlug(p.category)) notFound();
   const { cat, loc } = await load(p);
   if (!cat || !loc) notFound();
 
@@ -87,24 +91,24 @@ export default async function IntentPage({
       />
 
       <header className="mt-4">
-        <h1 className="text-3xl font-bold text-stone-900">
+        <h1 className="text-3xl font-bold text-pine">
           {cat.name} in {loc.name}, FL
         </h1>
-        <p className="mt-1 text-stone-500">
+        <p className="mt-1 text-ink/55">
           {results.total} {results.total === 1 ? "listing" : "listings"}
         </p>
       </header>
 
       {results.items.length === 0 ? (
-        <div className="mt-12 rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
+        <div className="mt-12 rounded-xl border border-dashed border-leather/30 bg-white p-8 text-center text-ink/55">
           <p>No {cat.name.toLowerCase()} listed in {loc.name} yet.</p>
           <p className="mt-2 text-sm">
             Browse{" "}
-            <Link href={categoryUrl(cat.slug)} className="text-emerald-700 hover:underline">
+            <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
               all {cat.name.toLowerCase()} in Florida
             </Link>{" "}
             or{" "}
-            <Link href={cityUrl(p.state, p.county, p.city)} className="text-emerald-700 hover:underline">
+            <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
               everything in {loc.name}
             </Link>
             .
@@ -123,11 +127,11 @@ export default async function IntentPage({
             totalPages={results.totalPages}
           />
           <div className="mt-10 flex flex-wrap gap-3 text-sm">
-            <Link href={categoryUrl(cat.slug)} className="text-emerald-700 hover:underline">
+            <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
               All {cat.name.toLowerCase()} in Florida →
             </Link>
-            <Link href={cityUrl(p.state, p.county, p.city)} className="text-emerald-700 hover:underline">
-              All equine businesses in {loc.name} →
+            <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
+              All stables in {loc.name} →
             </Link>
           </div>
         </>

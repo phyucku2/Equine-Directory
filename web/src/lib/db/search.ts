@@ -1,6 +1,23 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { businessCardInclude, type BusinessCard, type Paginated } from "@/lib/db/business";
+import {
+  businessCardInclude,
+  STABLES_CATEGORY_SOME,
+  STABLES_SLUG,
+  type BusinessCard,
+  type Paginated,
+} from "@/lib/db/business";
+
+// V1: free-text search is stables-only too. Constrain the raw FTS to businesses
+// that carry a published boarding category (mirrors STABLES_BUSINESS_WHERE).
+const STABLES_EXISTS = Prisma.sql`
+  AND EXISTS (
+    SELECT 1 FROM "BusinessCategory" bc
+    JOIN "Category" c ON c."id" = bc."categoryId"
+    WHERE bc."businessId" = "Business"."id"
+      AND bc."reviewStatus" IN ('AUTO_APPROVED', 'APPROVED')
+      AND c."slug" = ${STABLES_SLUG}
+  )`;
 
 export interface SearchParams {
   q?: string;
@@ -25,6 +42,7 @@ async function rankedIds(q: string, limit: number, offset: number): Promise<stri
         to_tsvector('english', "name" || ' ' || coalesce("description", '')) @@ plainto_tsquery('english', ${q})
         OR "name" % ${q}
       )
+      ${STABLES_EXISTS}
     ORDER BY
       "isFeatured" DESC,
       ts_rank(to_tsvector('english', "name" || ' ' || coalesce("description", '')), plainto_tsquery('english', ${q})) DESC,
@@ -44,6 +62,7 @@ async function countFts(q: string): Promise<number> {
         to_tsvector('english', "name" || ' ' || coalesce("description", '')) @@ plainto_tsquery('english', ${q})
         OR "name" % ${q}
       )
+      ${STABLES_EXISTS}
   `;
   return Number(rows[0]?.count ?? 0);
 }
@@ -52,6 +71,9 @@ async function countFts(q: string): Promise<number> {
 function buildWhere(p: SearchParams): Prisma.BusinessWhereInput {
   const where: Prisma.BusinessWhereInput = { isPublished: true };
   const and: Prisma.BusinessWhereInput[] = [];
+
+  // V1: every result must be a stable/barn (boarding facility).
+  and.push({ categories: STABLES_CATEGORY_SOME });
 
   if (p.categorySlug) {
     and.push({

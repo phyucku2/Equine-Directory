@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PUBLIC_CATEGORY_WHERE } from "@/lib/db/business";
+import { PUBLIC_CATEGORY_WHERE, STABLES_SLUG } from "@/lib/db/business";
 
 export const revalidate = 300;
 
@@ -11,7 +11,7 @@ export async function GET() {
     // (farrier/vet/tack/feed/trainer) stay in the DB, just hidden for now.
     where: {
       isPublished: true,
-      categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: "horse-boarding" } } },
+      categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } } },
     },
     select: {
       slug: true,

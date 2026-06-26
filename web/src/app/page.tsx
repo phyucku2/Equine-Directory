@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { getFeatured } from "@/lib/db/business";
-import { getTopLevelCategories, getCategoryCounts } from "@/lib/db/category";
 import { BusinessCard } from "@/components/business/BusinessCard";
-import { categoryUrl, cityUrl } from "@/lib/urls";
+import { cityUrl } from "@/lib/urls";
 
 export const revalidate = 3600;
 
@@ -25,11 +24,7 @@ function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) 
 }
 
 export default async function HomePage() {
-  const [featured, categories, counts] = await Promise.all([
-    getFeatured(6),
-    getTopLevelCategories(),
-    getCategoryCounts(),
-  ]);
+  const featured = await getFeatured(6);
 
   return (
     <div>
@@ -92,35 +87,6 @@ export default async function HomePage() {
             </div>
           </section>
         )}
-
-        {/* Categories */}
-        <section className="py-14">
-          <SectionHeading eyebrow="Explore" title="Browse by type" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {categories.map((cat) => {
-              const count =
-                cat.children.reduce((sum, c) => sum + (counts[c.slug] ?? 0), 0) +
-                (counts[cat.slug] ?? 0);
-              return (
-                <Link
-                  key={cat.id}
-                  href={categoryUrl(cat.slug)}
-                  className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
-                >
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold text-pine">{cat.name}</h3>
-                    {count > 0 && (
-                      <span className="rounded-full bg-pine/5 px-2 py-0.5 text-xs font-medium text-pine">
-                        {count}
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-sm text-ink/55">{cat.description}</p>
-                </Link>
-              );
-            })}
-          </div>
-        </section>
 
         {/* Top regions */}
         <section className="py-14">

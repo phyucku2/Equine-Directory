@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
+import { STABLES_BUSINESS_WHERE, STABLES_SLUG } from "@/lib/db/business";
 import { businessUrl, categoryUrl, stateUrl, countyUrl, cityUrl, absoluteUrl } from "@/lib/urls";
 import { isBusinessIndexable } from "@/lib/seo/indexing";
 
@@ -12,7 +13,7 @@ export async function generateSitemaps() {
 
 async function businessesSitemap(): Promise<MetadataRoute.Sitemap> {
   const rows = await prisma.business.findMany({
-    where: { isPublished: true },
+    where: STABLES_BUSINESS_WHERE,
     select: {
       slug: true,
       updatedAt: true,
@@ -43,7 +44,7 @@ async function categoriesSitemap(): Promise<MetadataRoute.Sitemap> {
   });
   const ids = grouped.map((g) => g.categoryId);
   const cats = await prisma.category.findMany({
-    where: { id: { in: ids } },
+    where: { id: { in: ids }, slug: STABLES_SLUG },
     select: { slug: true, updatedAt: true },
   });
   return cats.map((c) => ({
@@ -55,9 +56,9 @@ async function categoriesSitemap(): Promise<MetadataRoute.Sitemap> {
 }
 
 async function locationsSitemap(): Promise<MetadataRoute.Sitemap> {
-  // Derive non-empty locations from published businesses (city -> county -> state).
+  // Derive non-empty locations from published stables (city -> county -> state).
   const businesses = await prisma.business.findMany({
-    where: { isPublished: true },
+    where: STABLES_BUSINESS_WHERE,
     select: {
       location: {
         select: {

@@ -1,8 +1,7 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import type { Metadata } from "next";
-import { getCategoryBySlug, getAllCategorySlugs } from "@/lib/db/category";
-import { getByCategory, countByCategory } from "@/lib/db/business";
+import { getCategoryBySlug } from "@/lib/db/category";
+import { getByCategory, countByCategory, isStablesSlug, STABLES_SLUG } from "@/lib/db/business";
 import { categoryUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
@@ -13,13 +12,9 @@ import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
 
-export async function generateStaticParams() {
-  try {
-    const slugs = await getAllCategorySlugs();
-    return slugs.map((category) => ({ category }));
-  } catch {
-    return [];
-  }
+export function generateStaticParams() {
+  // V1: only the stables/boarding category is publicly browsable.
+  return [{ category: STABLES_SLUG }];
 }
 
 export async function generateMetadata({
@@ -49,6 +44,8 @@ export default async function CategoryPage({
 }) {
   const { category } = await params;
   const { page: pageParam } = await searchParams;
+  // V1: hide non-stable category hubs (their data stays in the DB).
+  if (!isStablesSlug(category)) notFound();
   const cat = await getCategoryBySlug(category);
   if (!cat) notFound();
 
@@ -68,30 +65,15 @@ export default async function CategoryPage({
       <Breadcrumbs items={crumbs} />
 
       <header className="mt-4">
-        <h1 className="text-3xl font-bold text-stone-900">{cat.name} in Florida</h1>
-        <p className="mt-1 text-stone-500">
+        <h1 className="text-3xl font-bold text-pine">{cat.name} in Florida</h1>
+        <p className="mt-1 text-ink/55">
           {results.total} {results.total === 1 ? "listing" : "listings"}
           {cat.description ? ` · ${cat.description}` : ""}
         </p>
       </header>
 
-      {/* Subcategory chips */}
-      {cat.children.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2">
-          {cat.children.map((c) => (
-            <Link
-              key={c.id}
-              href={categoryUrl(c.slug)}
-              className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700 hover:bg-emerald-50 hover:text-emerald-800"
-            >
-              {c.name}
-            </Link>
-          ))}
-        </div>
-      )}
-
       {results.items.length === 0 ? (
-        <p className="mt-12 rounded-xl border border-dashed border-stone-300 bg-white p-8 text-center text-stone-500">
+        <p className="mt-12 rounded-xl border border-dashed border-leather/30 bg-white p-8 text-center text-ink/55">
           No listings here yet. We&apos;re actively adding Florida businesses — check back soon.
         </p>
       ) : (

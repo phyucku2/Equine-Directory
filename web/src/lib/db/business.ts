@@ -9,6 +9,26 @@ export const PUBLIC_CATEGORY_WHERE: Prisma.BusinessCategoryWhereInput = {
   reviewStatus: { in: ["AUTO_APPROVED", "APPROVED"] },
 };
 
+// V1 scope: the public directory shows stables/barns (boarding facilities) ONLY.
+// Other crawled categories (vets, farriers, trainers, tack, feed…) stay in the DB
+// but are hidden until we launch their directories. This is the single source of
+// truth — every public business query and /api/map references it.
+export const STABLES_SLUG = "horse-boarding";
+
+export function isStablesSlug(slug: string): boolean {
+  return slug === STABLES_SLUG;
+}
+
+// A business is publicly listed only if it has a published boarding category.
+export const STABLES_CATEGORY_SOME: Prisma.BusinessCategoryListRelationFilter = {
+  some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } },
+};
+
+export const STABLES_BUSINESS_WHERE: Prisma.BusinessWhereInput = {
+  isPublished: true,
+  categories: STABLES_CATEGORY_SOME,
+};
+
 // Full listing shape used by the detail page.
 export const businessDetailInclude = {
   location: { include: { parent: { include: { parent: true } } } },
@@ -100,6 +120,7 @@ export function getByLocation(locationId: string, page = 1) {
   return paginateBusinesses(
     {
       isPublished: true,
+      categories: STABLES_CATEGORY_SOME,
       OR: [
         { locationId },
         { location: { parentId: locationId } },
@@ -144,7 +165,7 @@ export async function getRelated(business: BusinessDetail, take = 4): Promise<Bu
 
 export async function getFeatured(take = 6): Promise<BusinessCard[]> {
   return prisma.business.findMany({
-    where: { isPublished: true },
+    where: STABLES_BUSINESS_WHERE,
     include: businessCardInclude,
     orderBy: ordering(),
     take,
@@ -164,6 +185,7 @@ export function countByLocation(locationId: string): Promise<number> {
   return prisma.business.count({
     where: {
       isPublished: true,
+      categories: STABLES_CATEGORY_SOME,
       OR: [
         { locationId },
         { location: { parentId: locationId } },
