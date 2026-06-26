@@ -141,4 +141,8 @@ export const CITIES: CitySeed[] = [
   { name: "Fort Lauderdale", slug: "fort-lauderdale", countyFips: "011", lat: 26.1224, lng: -80.1373 },
   { name: "Sunrise", slug: "sunrise", countyFips: "011", lat: 26.1669, lng: -80.2564 },
   { name: "Tamarac", slug: "tamarac", countyFips: "011", lat: 26.2129, lng: -80.2497 },
+  { name: "Pompano Beach", slug: "pompano-beach", countyFips: "011", lat: 26.2379, lng: -80.1248 },
+  { name: "Deerfield Beach", slug: "deerfield-beach", countyFips: "011", lat: 26.3184, lng: -80.0998 },
+  { name: "Margate", slug: "margate", countyFips: "011", lat: 26.2445, lng: -80.2065 },
+  { name: "Dania Beach", slug: "dania-beach", countyFips: "011", lat: 26.0531, lng: -80.1439 },
 ];
