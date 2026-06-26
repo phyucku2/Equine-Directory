@@ -4,12 +4,12 @@ name: Crawl listings
 # Neon + ohorse), so it runs here, where the runner can reach both.
 #
 # Prerequisites (repo Settings -> Secrets and variables -> Actions):
-#   - DATABASE_URL   (required)  Neon connection string
+#   - DATABASE_URL          (required)        Neon connection string
+#   - GOOGLE_MAPS_API_KEY   (for places)      Google Places API key
 #   - GEMINI_API_KEY / ANTHROPIC_API_KEY  (optional)  only for LLM grading
 #
-# The taxonomy (categories + FL locations incl. Broward cities) must already be
-# seeded in the target DB — that happens automatically on a Vercel deploy via
-# the `prisma db seed` step in vercel-build.
+# The taxonomy (categories + FL locations incl. Broward cities) is seeded in the
+# target DB by a Vercel deploy (vercel-build runs migrate; seed is run once).
 
 on:
   workflow_dispatch:
@@ -17,8 +17,8 @@ on:
       source:
         description: "Source key"
         type: choice
-        options: [ohorse, fixtures]
-        default: ohorse
+        options: [places, ohorse, fixtures]
+        default: places
       limit:
         description: "Max listings to pull"
         type: string
@@ -52,13 +52,14 @@ jobs:
       - name: Install crawler dependencies
         run: pip install -r requirements.txt
 
-      - name: Install Chromium (live crawl only)
-        if: ${{ inputs.source != 'fixtures' }}
+      - name: Install Chromium (ohorse live crawl only)
+        if: ${{ inputs.source == 'ohorse' }}
         run: python -m playwright install --with-deps chromium
 
       - name: Run crawler
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
