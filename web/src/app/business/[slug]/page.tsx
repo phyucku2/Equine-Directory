@@ -7,6 +7,7 @@ import { businessUrl, categoryUrl, countyUrl, stateUrl, cityUrl, absoluteUrl } f
 import { telHref, ensureHttp, displayHostname } from "@/lib/format";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { Gallery } from "@/components/business/Gallery";
 import { VerificationBadge } from "@/components/business/VerificationBadge";
 import { StarRating } from "@/components/StarRating";
 import { JsonLd } from "@/components/JsonLd";
@@ -81,6 +82,12 @@ export default async function BusinessPage({
 
   const amenities = business.amenities ?? [];
 
+  // Google Places enrichment (stored as JSON by the crawler).
+  const hours = business.hoursOfOperation as { weekdayDescriptions?: string[] } | null;
+  const weekdayHours = Array.isArray(hours?.weekdayDescriptions) ? hours.weekdayDescriptions : [];
+  const attrs = (business.attributes ?? {}) as { googleMapsUri?: string };
+  const googleHref = typeof attrs.googleMapsUri === "string" ? attrs.googleMapsUri : mapHref;
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 pb-24 lg:pb-6">
       <JsonLd data={localBusinessLd(business)} />
@@ -89,6 +96,12 @@ export default async function BusinessPage({
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_320px]">
         {/* Main column */}
         <div>
+          {business.images.length > 0 && (
+            <div className="mb-6">
+              <Gallery images={business.images} name={business.name} />
+            </div>
+          )}
+
           {/* Trust card */}
           <div className="rounded-2xl border border-leather/15 bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
@@ -103,7 +116,19 @@ export default async function BusinessPage({
                   )}
                 </div>
               </div>
-              <StarRating rating={business.rating} reviewCount={business.reviewCount} size="lg" />
+              <div className="text-right">
+                <StarRating rating={business.rating} reviewCount={business.reviewCount} size="lg" />
+                {business.reviewCount > 0 && (
+                  <a
+                    href={googleHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-1 block text-xs text-brass hover:underline"
+                  >
+                    on Google →
+                  </a>
+                )}
+              </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
@@ -212,6 +237,23 @@ export default async function BusinessPage({
               View on map →
             </a>
           </div>
+
+          {weekdayHours.length > 0 && (
+            <div className="rounded-2xl border border-leather/15 bg-white p-5">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/55">Hours</h2>
+              <ul className="mt-2 space-y-1 text-sm text-ink/75">
+                {weekdayHours.map((d) => {
+                  const [day, ...rest] = d.split(": ");
+                  return (
+                    <li key={d} className="flex justify-between gap-3">
+                      <span className="text-ink/55">{day}</span>
+                      <span className="text-right">{rest.join(": ")}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
 
           <div className="rounded-2xl border border-dashed border-leather/25 bg-white p-5 text-sm text-ink/70">
             <p className="font-medium text-pine">Is this your stable?</p>
