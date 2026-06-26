@@ -1,0 +1,70 @@
+name: Crawl listings
+
+# Manual trigger. The crawler can't run from the dev sandbox (egress blocks
+# Neon + ohorse), so it runs here, where the runner can reach both.
+#
+# Prerequisites (repo Settings -> Secrets and variables -> Actions):
+#   - DATABASE_URL   (required)  Neon connection string
+#   - GEMINI_API_KEY / ANTHROPIC_API_KEY  (optional)  only for LLM grading
+#
+# The taxonomy (categories + FL locations incl. Broward cities) must already be
+# seeded in the target DB — that happens automatically on a Vercel deploy via
+# the `prisma db seed` step in vercel-build.
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Source key"
+        type: choice
+        options: [ohorse, fixtures]
+        default: ohorse
+      limit:
+        description: "Max listings to pull"
+        type: string
+        default: "25"
+      use_llm:
+        description: "Use LLM grading (needs an API key secret)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Chromium (live crawl only)
+        if: ${{ inputs.source != 'fixtures' }}
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run crawler
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          ARGS="--source ${{ inputs.source }} --limit ${{ inputs.limit }}"
+          if [ "${{ inputs.use_llm }}" != "true" ]; then
+            ARGS="$ARGS --no-llm"
+          fi
+          echo "Running: python run.py $ARGS"
+          python run.py $ARGS
