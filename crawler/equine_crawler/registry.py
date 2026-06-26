@@ -23,6 +23,10 @@ class Source:
     delay_seconds: float = 2.0
     max_concurrency: int = 3
     respect_robots: bool = True
+    # "crawl" = HTML scrape via crawl4ai; "places" = Google Places API;
+    # "fixtures" handled by key. `queries` holds Places text-search queries.
+    kind: str = "crawl"
+    queries: list[str] = field(default_factory=list)
 
 
 # A directory-style source: one row per listing card. Selectors are illustrative
@@ -60,7 +64,29 @@ FIXTURES = Source(
 )
 
 
-REGISTRY: dict[str, Source] = {s.key: s for s in [OHORSE, FIXTURES]}
+# Google Places API source — authoritative local-business data (name, address,
+# phone, website, geo). Text-search queries target the Davie/Broward belt; the
+# grading step confirms which results are truly boarding/training stables.
+PLACES = Source(
+    key="places",
+    name="Google Places",
+    urls=[],
+    css_schema={},
+    candidate_categories=["horse-boarding", "trainer-instructor"],
+    kind="places",
+    queries=[
+        "horse boarding Davie FL",
+        "horse stables Davie FL",
+        "horse boarding Southwest Ranches FL",
+        "horse stables Cooper City FL",
+        "horse stables Parkland FL",
+        "equestrian center Broward County FL",
+        "horse training Broward County FL",
+    ],
+)
+
+
+REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, OHORSE, FIXTURES]}
 
 
 def get_source(key: str) -> Source:
