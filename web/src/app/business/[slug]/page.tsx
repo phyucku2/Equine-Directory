@@ -38,7 +38,7 @@ export async function generateMetadata({
   const business = await getBusinessBySlug(slug);
   if (!business) return { title: "Listing not found" };
   const cat = business.categories[0]?.category.name;
-  const title = `${business.name} — ${cat ?? "Equine business"} in ${business.location.name}, FL`;
+  const title = `${business.name} — ${cat ?? "Horse stable"} in ${business.location.name}, FL`;
   const description =
     business.description?.slice(0, 160) ??
     `${business.name} in ${business.location.name}, Florida.`;
@@ -65,6 +65,9 @@ export default async function BusinessPage({
   const state = county?.parent;
   const phoneHref = telHref(business.phone);
   const site = ensureHttp(business.website);
+  const mapsQuery = `${business.latitude},${business.longitude}`;
+  const mapHref = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
+  const directionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapsQuery}`;
 
   const crumbs = [
     { name: "Home", url: "/" },
@@ -79,7 +82,7 @@ export default async function BusinessPage({
   const amenities = business.amenities ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-6">
+    <div className="mx-auto max-w-5xl px-4 py-6 pb-24 lg:pb-6">
       <JsonLd data={localBusinessLd(business)} />
       <Breadcrumbs items={crumbs} />
 
@@ -87,14 +90,14 @@ export default async function BusinessPage({
         {/* Main column */}
         <div>
           {/* Trust card */}
-          <div className="rounded-2xl border border-stone-200 bg-white p-6">
+          <div className="rounded-2xl border border-leather/15 bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-2xl font-bold text-stone-900 sm:text-3xl">{business.name}</h1>
+                <h1 className="font-serif text-2xl font-semibold text-pine sm:text-3xl">{business.name}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <VerificationBadge badge={business.verificationBadge} />
                   {business.isFeatured && (
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                    <span className="rounded-full bg-brass/15 px-2 py-0.5 text-xs font-medium text-leather">
                       Featured
                     </span>
                   )}
@@ -108,7 +111,7 @@ export default async function BusinessPage({
                 <Link
                   key={bc.categoryId}
                   href={categoryUrl(bc.category.slug)}
-                  className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-700 hover:bg-emerald-50 hover:text-emerald-800"
+                  className="rounded-full bg-pine/5 px-3 py-1 text-sm text-pine hover:bg-brass/10 hover:text-brass"
                 >
                   {bc.category.name}
                 </Link>
@@ -120,7 +123,7 @@ export default async function BusinessPage({
               {phoneHref && (
                 <a
                   href={phoneHref}
-                  className="rounded-lg bg-emerald-700 px-4 py-2 font-medium text-white transition hover:bg-emerald-800"
+                  className="rounded-lg bg-pine px-4 py-2 font-medium text-cream transition hover:bg-pine-light"
                 >
                   Call {business.phone}
                 </a>
@@ -130,7 +133,7 @@ export default async function BusinessPage({
                   href={site}
                   target="_blank"
                   rel="noopener noreferrer nofollow"
-                  className="rounded-lg border border-stone-300 px-4 py-2 font-medium text-stone-700 transition hover:border-emerald-300 hover:text-emerald-800"
+                  className="rounded-lg border border-leather/25 px-4 py-2 font-medium text-pine transition hover:border-brass hover:text-brass"
                 >
                   Visit website
                 </a>
@@ -141,22 +144,22 @@ export default async function BusinessPage({
           {/* Description */}
           {business.description && (
             <section className="mt-6">
-              <h2 className="text-lg font-semibold text-stone-900">About</h2>
-              <p className="mt-2 whitespace-pre-line text-stone-600">{business.description}</p>
+              <h2 className="font-serif text-lg font-semibold text-pine">About</h2>
+              <p className="mt-2 whitespace-pre-line text-ink/70">{business.description}</p>
             </section>
           )}
 
           {/* Amenities */}
           {amenities.length > 0 && (
             <section className="mt-6">
-              <h2 className="text-lg font-semibold text-stone-900">Amenities &amp; services</h2>
+              <h2 className="font-serif text-lg font-semibold text-pine">Facilities &amp; amenities</h2>
               <ul className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {amenities.map((a) => (
                   <li
                     key={a}
-                    className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-stone-700 ring-1 ring-stone-200"
+                    className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-ink/70 ring-1 ring-leather/15"
                   >
-                    <span className="text-emerald-600">✓</span>
+                    <span className="text-brass">✓</span>
                     {a}
                   </li>
                 ))}
@@ -166,19 +169,19 @@ export default async function BusinessPage({
 
           {/* Reviews */}
           <section className="mt-8">
-            <h2 className="text-lg font-semibold text-stone-900">Reviews</h2>
+            <h2 className="font-serif text-lg font-semibold text-pine">Reviews</h2>
             {business.reviews.length === 0 ? (
-              <p className="mt-2 text-sm text-stone-500">No reviews yet.</p>
+              <p className="mt-2 text-sm text-ink/55">No reviews yet.</p>
             ) : (
               <ul className="mt-4 space-y-4">
                 {business.reviews.map((r) => (
-                  <li key={r.id} className="rounded-xl border border-stone-200 bg-white p-4">
+                  <li key={r.id} className="rounded-xl border border-leather/15 bg-white p-4">
                     <div className="flex items-center justify-between">
-                      <span className="font-medium text-stone-800">{r.authorName}</span>
-                      <span className="text-amber-500">{"★".repeat(r.rating)}</span>
+                      <span className="font-medium text-pine">{r.authorName}</span>
+                      <span className="text-brass">{"★".repeat(r.rating)}</span>
                     </div>
-                    {r.title && <p className="mt-1 font-medium text-stone-700">{r.title}</p>}
-                    <p className="mt-1 text-sm text-stone-600">{r.content}</p>
+                    {r.title && <p className="mt-1 font-medium text-ink/80">{r.title}</p>}
+                    <p className="mt-1 text-sm text-ink/70">{r.content}</p>
                   </li>
                 ))}
               </ul>
@@ -188,33 +191,33 @@ export default async function BusinessPage({
 
         {/* Sidebar */}
         <aside className="space-y-4">
-          <div className="rounded-2xl border border-stone-200 bg-white p-5">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">
+          <div className="rounded-2xl border border-leather/15 bg-white p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/55">
               Location
             </h2>
-            <p className="mt-2 text-stone-800">{business.address}</p>
+            <p className="mt-2 text-ink/80">{business.address}</p>
             {site && (
               <p className="mt-2 text-sm">
-                <a href={site} target="_blank" rel="noopener noreferrer nofollow" className="text-emerald-700 hover:underline">
+                <a href={site} target="_blank" rel="noopener noreferrer nofollow" className="text-brass hover:underline">
                   {displayHostname(business.website)}
                 </a>
               </p>
             )}
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${business.latitude},${business.longitude}`}
+              href={mapHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-3 inline-block text-sm text-emerald-700 hover:underline"
+              className="mt-3 inline-block text-sm text-brass hover:underline"
             >
               View on map →
             </a>
           </div>
 
-          <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-5 text-sm text-stone-600">
-            <p className="font-medium text-stone-800">Is this your business?</p>
+          <div className="rounded-2xl border border-dashed border-leather/25 bg-white p-5 text-sm text-ink/70">
+            <p className="font-medium text-pine">Is this your stable?</p>
             <p className="mt-1">Claim your listing to manage details and respond to reviews.</p>
-            <Link href={`/business/${business.slug}/claim`} className="mt-2 inline-block font-medium text-emerald-700 hover:underline">
-              Claim this business →
+            <Link href={`/business/${business.slug}/claim`} className="mt-2 inline-block font-medium text-brass hover:underline">
+              Claim this stable →
             </Link>
           </div>
         </aside>
@@ -223,8 +226,8 @@ export default async function BusinessPage({
       {/* Related */}
       {related.length > 0 && (
         <section className="mt-12">
-          <h2 className="mb-5 text-xl font-bold text-stone-900">
-            Other listings in {business.location.name}
+          <h2 className="mb-5 font-serif text-xl font-semibold text-pine">
+            Other stables in {business.location.name}
           </h2>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {related.map((b) => (
@@ -233,6 +236,38 @@ export default async function BusinessPage({
           </div>
         </section>
       )}
+
+      {/* Sticky mobile action bar — thumb-reachable Call / Directions / Website */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-leather/15 bg-cream/95 px-4 py-3 backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-5xl gap-2">
+          {phoneHref && (
+            <a
+              href={phoneHref}
+              className="flex-1 rounded-lg bg-pine py-2.5 text-center font-semibold text-cream transition hover:bg-pine-light"
+            >
+              Call
+            </a>
+          )}
+          <a
+            href={directionsHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-1 rounded-lg border border-pine/30 py-2.5 text-center font-semibold text-pine transition hover:border-brass hover:text-brass"
+          >
+            Directions
+          </a>
+          {site && (
+            <a
+              href={site}
+              target="_blank"
+              rel="noopener noreferrer nofollow"
+              className="flex-1 rounded-lg border border-pine/30 py-2.5 text-center font-semibold text-pine transition hover:border-brass hover:text-brass"
+            >
+              Website
+            </a>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
