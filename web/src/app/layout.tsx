@@ -3,6 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/site/Header";
 import { Footer } from "@/components/site/Footer";
+import { Providers } from "@/components/auth/Providers";
+import { MobileAuthCorner } from "@/components/auth/MobileAuthCorner";
 import { JsonLd } from "@/components/JsonLd";
 import { organizationLd, websiteLd } from "@/lib/seo/jsonld";
 import { SITE } from "@/lib/site";
@@ -41,9 +43,12 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans text-ink">
         <JsonLd data={[organizationLd(), websiteLd()]} />
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
+        <Providers>
+          <Header />
+          <MobileAuthCorner />
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

@@ -36,8 +36,7 @@ export default async function HomePage() {
       {/* Hero */}
       <section className="border-b border-leather/15 bg-cream-dark">
         <div className="mx-auto max-w-3xl px-4 py-16 text-center sm:py-20">
-          <p className="text-sm font-semibold text-brass">Florida-first · Expanding nationwide</p>
-          <h1 className="mt-3 text-4xl font-bold tracking-tight text-ink sm:text-5xl">
+          <h1 className="text-4xl font-bold tracking-tight text-ink sm:text-5xl">
             Find the right stable for your horse
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-ink/60">

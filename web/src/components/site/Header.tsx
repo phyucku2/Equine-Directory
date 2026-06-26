@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { SITE } from "@/lib/site";
+import { AuthButton } from "@/components/auth/AuthButton";
 
+// Desktop-only top bar. On mobile the header is hidden for a clean, app-like
+// feel; the Google sign-in floats in the corner via <MobileAuthCorner />.
 export function Header() {
   return (
-    <header className="sticky top-0 z-40 border-b border-leather/15 bg-cream/85 backdrop-blur">
+    <header className="sticky top-0 z-40 hidden border-b border-leather/15 bg-white/85 backdrop-blur sm:block">
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="flex items-center gap-2 text-pine">
           <svg viewBox="0 0 24 24" className="h-7 w-7 text-brass" fill="currentColor" aria-hidden>
@@ -11,11 +14,11 @@ export function Header() {
           </svg>
           <span className="text-xl font-semibold tracking-tight">{SITE.name}</span>
         </Link>
-        <nav className="flex items-center gap-1 text-sm font-medium text-ink/70 sm:gap-4">
+        <nav className="flex items-center gap-4 text-sm font-medium text-ink/70">
           <Link href="/map" className="hover:text-brass">
             Map
           </Link>
-          <Link href="/locations/florida" className="hidden hover:text-brass sm:inline">
+          <Link href="/locations/florida" className="hover:text-brass">
             Florida
           </Link>
           <Link href="/search" className="hover:text-brass">
@@ -27,6 +30,7 @@ export function Header() {
           >
             List your stable
           </Link>
+          <AuthButton />
         </nav>
       </div>
     </header>
