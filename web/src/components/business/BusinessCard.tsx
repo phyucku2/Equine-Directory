@@ -34,8 +34,13 @@ export function BusinessCard({ business }: { business: BusinessCardData }) {
           </div>
         )}
         {business.isFeatured && (
-          <span className="absolute left-2 top-2 rounded-full bg-brass px-2 py-0.5 text-xs font-semibold text-pine">
+          <span className="absolute left-2 top-2 rounded-full bg-brass px-2 py-0.5 text-xs font-semibold text-white">
             Featured
+          </span>
+        )}
+        {img?.caption && (
+          <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
+            {img.caption}
           </span>
         )}
       </div>

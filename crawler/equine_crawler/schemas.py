@@ -45,6 +45,13 @@ class RawListing(BaseModel):
     candidate_categories: list[str] = Field(default_factory=list)
     source_url: str | None = None
     external_id: str | None = None
+    # Google Places enrichment (optional; absent for other sources).
+    rating: float | None = None
+    rating_count: int | None = None
+    business_status: str | None = None
+    hours: dict[str, Any] | None = None  # Places regularOpeningHours
+    google_maps_uri: str | None = None
+    photos: list[dict[str, Any]] = Field(default_factory=list)  # [{ref, attribution}]
 
     @field_validator("name")
     @classmethod
@@ -82,6 +89,11 @@ class NormalizedListing(BaseModel):
     source_url: str | None = None
     external_id: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    # Google Places enrichment passed through to the DB.
+    rating: float | None = None
+    rating_count: int | None = None
+    hours: dict[str, Any] | None = None
+    photos: list[dict[str, Any]] = Field(default_factory=list)
 
     @property
     def is_published(self) -> bool:

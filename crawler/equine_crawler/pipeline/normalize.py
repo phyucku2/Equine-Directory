@@ -66,4 +66,10 @@ def normalize(raw: RawListing) -> RawListing:
         candidate_categories=raw.candidate_categories,
         source_url=raw.source_url,
         external_id=raw.external_id,
+        rating=raw.rating,
+        rating_count=raw.rating_count,
+        business_status=raw.business_status,
+        hours=raw.hours,
+        google_maps_uri=raw.google_maps_uri,
+        photos=raw.photos,
     )

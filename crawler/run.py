@@ -108,11 +108,14 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                 else:
                     graded = grade_listing(n.candidate_categories, n.name, n.description or "", use_llm=use_llm)
                 slug = slugify(n.name, n.city or "")
+                attributes = {"googleMapsUri": n.google_maps_uri} if n.google_maps_uri else {}
                 normalized = NormalizedListing(
                     name=n.name, slug=slug, address=n.address or n.city or "FL",
                     city=n.city, phone=n.phone, website=n.website, description=n.description,
                     latitude=lat, longitude=lng, location_id=location_id,
                     graded_categories=graded, source_url=n.source_url, external_id=n.external_id,
+                    attributes=attributes, rating=n.rating, rating_count=n.rating_count,
+                    hours=n.hours, photos=n.photos,
                 )
 
                 existing = find_existing(conn, slug, n.name, n.phone, n.website)

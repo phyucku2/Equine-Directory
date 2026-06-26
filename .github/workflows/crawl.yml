@@ -61,14 +61,14 @@ jobs:
         run: python -m playwright install --with-deps chromium
 
       - uses: actions/setup-node@v4
-        if: ${{ inputs.seed }}
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
 
-      - name: Seed taxonomy (categories + FL locations)
-        if: ${{ inputs.seed }}
+      # Migrations must always run before the crawl (the crawler writes columns/
+      # types defined by them, e.g. the widened BusinessImage.url for photo refs).
+      - name: Apply DB migrations
         working-directory: web
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -76,7 +76,13 @@ jobs:
           npm ci
           npx prisma generate
           npx prisma migrate deploy
-          npx prisma db seed
+
+      - name: Seed taxonomy (categories + FL locations)
+        if: ${{ inputs.seed }}
+        working-directory: web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma db seed
 
       - name: Run crawler
         env:

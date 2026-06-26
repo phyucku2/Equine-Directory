@@ -250,7 +250,7 @@ model BusinessImage {
   id         String      @id @default(cuid())
   businessId String
   business   Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  url        String      @db.VarChar(512)
+  url        String      @db.Text
   altText    String?     @db.VarChar(255)
   caption    String?     @db.VarChar(512)
   width      Int?

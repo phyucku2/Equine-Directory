@@ -163,7 +163,29 @@ export function MapView() {
     });
     markersRef.current = markers;
 
-    if (!clustererRef.current) clustererRef.current = new MarkerClusterer({ map });
+    if (!clustererRef.current) {
+      // Brand-blue cluster bubbles (default renderer is red/yellow — off-brand).
+      const renderer = {
+        render: ({ count, position }: { count: number; position: unknown }) => {
+          const size = count < 10 ? 38 : count < 50 ? 46 : 54;
+          const svg = btoa(
+            `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">` +
+              `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2 - 1}" fill="#3b82f6" fill-opacity="0.95" stroke="#ffffff" stroke-width="2"/></svg>`,
+          );
+          return new google.maps.Marker({
+            position,
+            icon: {
+              url: `data:image/svg+xml;base64,${svg}`,
+              scaledSize: new google.maps.Size(size, size),
+              anchor: new google.maps.Point(size / 2, size / 2),
+            },
+            label: { text: String(count), color: "#ffffff", fontSize: "12px", fontWeight: "700" },
+            zIndex: 1000 + count,
+          });
+        },
+      };
+      clustererRef.current = new MarkerClusterer({ map, renderer });
+    }
     clustererRef.current.clearMarkers();
     clustererRef.current.addMarkers(markers);
   }, [filtered, mapReady]);

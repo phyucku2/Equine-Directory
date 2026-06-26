@@ -30,8 +30,30 @@ _PLACES_FIELDS = ",".join(
         "places.websiteUri",
         "places.editorialSummary",
         "places.primaryTypeDisplayName",
+        # Enrichment (bumps to the Pro field tier — see crawler README).
+        "places.rating",
+        "places.userRatingCount",
+        "places.businessStatus",
+        "places.regularOpeningHours",
+        "places.googleMapsUri",
+        "places.photos",
     ]
 )
+
+_MAX_PHOTOS = 3
+
+
+def _places_photos(photos: list[dict] | None) -> list[dict]:
+    """Top photo references + author attribution (for the place-photo proxy)."""
+    out: list[dict] = []
+    for ph in (photos or [])[:_MAX_PHOTOS]:
+        ref = ph.get("name")
+        if not ref:
+            continue
+        authors = ph.get("authorAttributions") or []
+        attribution = (authors[0].get("displayName") if authors else None) or None
+        out.append({"ref": ref, "attribution": attribution})
+    return out
 
 
 def _places_city(components: list[dict] | None) -> str | None:
@@ -79,6 +101,9 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                 name = (p.get("displayName") or {}).get("text")
                 if not pid or not name:
                     continue
+                # Skip permanently-closed places — don't list dead barns.
+                if p.get("businessStatus") == "CLOSED_PERMANENTLY":
+                    continue
                 if pid in by_id:
                     # Same place surfaced by another category search — merge.
                     cats = by_id[pid].candidate_categories
@@ -98,6 +123,12 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                     candidate_categories=[category],
                     source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
                     external_id=f"google:{pid}",
+                    rating=p.get("rating"),
+                    rating_count=p.get("userRatingCount"),
+                    business_status=p.get("businessStatus"),
+                    hours=p.get("regularOpeningHours"),
+                    google_maps_uri=p.get("googleMapsUri"),
+                    photos=_places_photos(p.get("photos")),
                 )
                 order.append(pid)
 
