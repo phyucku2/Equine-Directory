@@ -158,10 +158,39 @@ export function MapView() {
     if (!map || !mapReady) return;
 
     markersRef.current.forEach((m) => m.setMap(null));
+
+    // Fan out markers that share (near-)identical coordinates. Stacked listings
+    // otherwise collapse into a cluster that shows "2" but can never separate by
+    // zoom (same pixel at every zoom) and only ever surfaces one card. We spread
+    // each colliding group around a tiny (~22m) circle so they're individually
+    // visible and tappable once zoomed in.
+    const groups = new Map<string, StableMarker[]>();
+    for (const s of filtered) {
+      const key = `${s.lat.toFixed(5)},${s.lng.toFixed(5)}`;
+      const g = groups.get(key);
+      if (g) g.push(s);
+      else groups.set(key, [s]);
+    }
+    const posBySlug: Record<string, { lat: number; lng: number }> = {};
+    for (const group of groups.values()) {
+      if (group.length === 1) {
+        posBySlug[group[0].slug] = { lat: group[0].lat, lng: group[0].lng };
+        continue;
+      }
+      const R = 0.0002; // ~22m in latitude degrees
+      group.forEach((s, i) => {
+        const a = (2 * Math.PI * i) / group.length;
+        posBySlug[s.slug] = {
+          lat: s.lat + R * Math.sin(a),
+          lng: s.lng + (R * Math.cos(a)) / Math.cos((s.lat * Math.PI) / 180),
+        };
+      });
+    }
+
     const bySlug: Record<string, unknown> = {};
     const markers = filtered.map((s) => {
       const m = new google.maps.Marker({
-        position: { lat: s.lat, lng: s.lng },
+        position: posBySlug[s.slug] ?? { lat: s.lat, lng: s.lng },
         icon: markerIcon(false),
         title: s.name,
       });
@@ -360,7 +389,7 @@ export function MapView() {
                     No stables match these filters.
                   </div>
                 )}
-                {filtered.slice(0, 60).map((s) => (
+                {filtered.map((s) => (
                   <div
                     key={s.slug}
                     ref={(el) => {
