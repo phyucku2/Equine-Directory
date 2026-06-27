@@ -30,6 +30,32 @@ from equine_crawler.registry import get_source
 from equine_crawler.schemas import Grade, GradedCategory, NormalizedListing
 
 
+# Google Places primaryType values that are clearly NOT boarding barns. Places
+# the boarding/equestrian search returns with one of these (e.g. Tradewinds Park
+# = "park") are routed to the moderation queue instead of auto-publishing.
+# Decision is on primaryType only (Google's single best classification) to avoid
+# excluding a real barn that merely carries a generic secondary type.
+_NONBARN_PRIMARY_TYPES = {
+    "park", "national_park", "state_park", "dog_park", "amusement_park", "water_park",
+    "tourist_attraction", "historical_landmark", "historical_place", "monument",
+    "school", "primary_school", "secondary_school", "preschool", "university",
+    "campground", "rv_park", "hiking_area", "national_forest",
+    "hotel", "motel", "lodging", "resort_hotel", "bed_and_breakfast", "guest_house",
+    "local_government_office", "government_office", "city_hall", "courthouse",
+    "hospital", "pharmacy", "shopping_mall", "supermarket", "grocery_store",
+    "department_store", "store", "clothing_store", "pet_store", "home_goods_store",
+    "restaurant", "cafe", "coffee_shop", "bar", "fast_food_restaurant",
+    "church", "place_of_worship", "mosque", "synagogue", "hindu_temple",
+    "golf_course", "gym", "fitness_center", "library", "museum", "zoo", "aquarium",
+    "parking", "gas_station", "real_estate_agency", "bank", "atm",
+    "airport", "transit_station", "bus_station",
+}
+
+
+def _is_nonbarn(primary_type: str | None) -> bool:
+    return bool(primary_type) and primary_type in _NONBARN_PRIMARY_TYPES
+
+
 def _start_job(conn, source_key: str, url: str) -> str:
     job_id = gen_id()
     with conn.cursor() as cur:
@@ -96,12 +122,19 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                 lng = n.longitude if n.longitude is not None else clng
 
                 if source.kind == "places":
-                    # Google returned this for a category-targeted search, so the
-                    # candidate categories are confirmed evidence — auto-publish
-                    # under them (no LLM grading needed for Places).
+                    # Google returned this for a category-targeted search. Auto-
+                    # publish genuine facilities, but route clear non-barns (parks,
+                    # schools, hotels, stores, …) to moderation instead of the map.
+                    nonbarn = _is_nonbarn(n.primary_type)
+                    grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
+                    if nonbarn:
+                        print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
                     graded = [
                         GradedCategory(
-                            category_slug=c, grade=Grade.CONFIRMED, confidence=0.9, is_primary=(i == 0)
+                            category_slug=c,
+                            grade=grade,
+                            confidence=0.4 if nonbarn else 0.9,
+                            is_primary=(i == 0),
                         )
                         for i, c in enumerate(n.candidate_categories)
                     ]

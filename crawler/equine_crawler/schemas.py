@@ -45,6 +45,9 @@ class RawListing(BaseModel):
     candidate_categories: list[str] = Field(default_factory=list)
     source_url: str | None = None
     external_id: str | None = None
+    # Google Places place classification (used to filter out non-barns).
+    primary_type: str | None = None
+    types: list[str] = Field(default_factory=list)
     # Google Places enrichment (optional; absent for other sources).
     rating: float | None = None
     rating_count: int | None = None

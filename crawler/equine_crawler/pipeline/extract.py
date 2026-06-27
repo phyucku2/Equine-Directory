@@ -30,6 +30,8 @@ _PLACES_FIELDS = ",".join(
         "places.websiteUri",
         "places.editorialSummary",
         "places.primaryTypeDisplayName",
+        "places.primaryType",
+        "places.types",
         # Enrichment (bumps to the Pro field tier — see crawler README).
         "places.rating",
         "places.userRatingCount",
@@ -123,6 +125,8 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                     candidate_categories=[category],
                     source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
                     external_id=f"google:{pid}",
+                    primary_type=p.get("primaryType"),
+                    types=p.get("types") or [],
                     rating=p.get("rating"),
                     rating_count=p.get("userRatingCount"),
                     business_status=p.get("businessStatus"),

@@ -66,6 +66,8 @@ def normalize(raw: RawListing) -> RawListing:
         candidate_categories=raw.candidate_categories,
         source_url=raw.source_url,
         external_id=raw.external_id,
+        primary_type=raw.primary_type,
+        types=raw.types,
         rating=raw.rating,
         rating_count=raw.rating_count,
         business_status=raw.business_status,
