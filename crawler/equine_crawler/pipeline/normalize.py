@@ -58,6 +58,7 @@ def normalize(raw: RawListing) -> RawListing:
         name=clean_text(raw.name) or raw.name,
         address=clean_text(raw.address),
         city=infer_city(raw),
+        county=clean_text(raw.county),
         phone=clean_phone(raw.phone),
         website=clean_url(raw.website),
         description=clean_text(raw.description),

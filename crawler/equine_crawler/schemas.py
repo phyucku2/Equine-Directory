@@ -34,6 +34,7 @@ class RawListing(BaseModel):
     name: str
     address: str | None = None
     city: str | None = None
+    county: str | None = None
     phone: str | None = None
     website: str | None = None
     description: str | None = None

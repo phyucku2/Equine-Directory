@@ -1,48 +1,144 @@
-"""Resolve a listing's city name to a seeded Location (id + coordinates).
+"""Resolve a listing's city to a Location, creating it under its county if needed.
 
-MVP uses the seeded city centroid as the listing's lat/lng. Per-address
-geocoding (Mapbox/Google) is a later enhancement; the schema already stores
-precise lat/lng so we can refine in place.
+For Broward we pre-seeded cities, but a statewide (and eventually national) run
+hits thousands of cities we never seeded. Since every FL county IS seeded, we
+look up the listing's county (from Places addressComponents) and create the city
+under it on the fly, using the place's exact coordinates as the city centroid.
+This makes the crawler self-expanding geographically.
 """
 
 from __future__ import annotations
 
+import re
+
 import psycopg
 
+from ..db import gen_id
 
-def resolve_location(conn: psycopg.Connection, city: str | None) -> tuple[str, float, float] | None:
-    """Return (location_id, lat, lng) for a FL city name, or None if unknown."""
+_SLUG = re.compile(r"[^a-z0-9]+")
+
+
+def _slugify(name: str) -> str:
+    return _SLUG.sub("-", name.lower()).strip("-")
+
+
+def _resolve_global(cur: psycopg.Cursor, city: str) -> tuple[str, float, float] | None:
+    """Seeded-city lookup with no county context (exact, then conservative fuzzy)."""
+    cur.execute(
+        """
+        SELECT l.id, l.latitude, l.longitude
+        FROM "Location" l
+        WHERE l.type = 'CITY' AND lower(l.name) = lower(%s) AND l.latitude IS NOT NULL
+        LIMIT 1
+        """,
+        (city,),
+    )
+    row = cur.fetchone()
+    if row:
+        return (row[0], float(row[1]), float(row[2]))
+    cur.execute(
+        """
+        SELECT l.id, l.latitude, l.longitude, similarity(l.name, %s) AS s
+        FROM "Location" l
+        WHERE l.type = 'CITY' AND l.latitude IS NOT NULL AND l.name %% %s
+        ORDER BY s DESC LIMIT 1
+        """,
+        (city, city),
+    )
+    row = cur.fetchone()
+    if row and row[3] and row[3] >= 0.5:
+        return (row[0], float(row[1]), float(row[2]))
+    return None
+
+
+def _find_county_id(cur: psycopg.Cursor, county: str | None) -> str | None:
+    if not county:
+        return None
+    base = re.sub(r"\s+county$", "", county.strip(), flags=re.I)
+    cur.execute(
+        """
+        SELECT id FROM "Location"
+        WHERE type = 'COUNTY' AND (lower(name) = lower(%s) OR lower(name) = lower(%s))
+        LIMIT 1
+        """,
+        (county, base + " County"),
+    )
+    row = cur.fetchone()
+    return row[0] if row else None
+
+
+def resolve_or_create(
+    conn: psycopg.Connection,
+    city: str | None,
+    county: str | None,
+    lat: float | None,
+    lng: float | None,
+) -> tuple[str, float, float] | None:
+    """Return (location_id, lat, lng). Creates the city under its county if it
+    isn't seeded yet (statewide/national). Falls back to a global seeded-city
+    match when the county is unknown."""
     if not city:
         return None
     city = city.strip()
     with conn.cursor() as cur:
-        # Exact (case-insensitive) city match within Florida.
-        cur.execute(
-            """
-            SELECT l.id, l.latitude, l.longitude
-            FROM "Location" l
-            WHERE l.type = 'CITY' AND lower(l.name) = lower(%s)
-              AND l.latitude IS NOT NULL
-            LIMIT 1
-            """,
-            (city,),
-        )
-        row = cur.fetchone()
-        if row:
-            return (row[0], float(row[1]), float(row[2]))
+        county_id = _find_county_id(cur, county)
+        if county_id:
+            # Exact city within this county (avoids cross-county fuzzy errors).
+            cur.execute(
+                """
+                SELECT id, latitude, longitude FROM "Location"
+                WHERE type = 'CITY' AND "parentId" = %s AND lower(name) = lower(%s)
+                LIMIT 1
+                """,
+                (county_id, city),
+            )
+            row = cur.fetchone()
+            if row and row[1] is not None:
+                return (row[0], float(row[1]), float(row[2]))
 
-        # Fuzzy fallback via trigram similarity.
-        cur.execute(
-            """
-            SELECT l.id, l.latitude, l.longitude, similarity(l.name, %s) AS s
-            FROM "Location" l
-            WHERE l.type = 'CITY' AND l.latitude IS NOT NULL AND l.name %% %s
-            ORDER BY s DESC
-            LIMIT 1
-            """,
-            (city, city),
-        )
-        row = cur.fetchone()
-        if row and row[3] and row[3] >= 0.4:
-            return (row[0], float(row[1]), float(row[2]))
-    return None
+            # Create it (use the place's coords; fall back to county centroid).
+            if lat is None or lng is None:
+                cur.execute('SELECT latitude, longitude FROM "Location" WHERE id = %s', (county_id,))
+                cc = cur.fetchone()
+                if cc and cc[0] is not None:
+                    lat, lng = float(cc[0]), float(cc[1])
+            if lat is None or lng is None:
+                return None
+
+            if row:  # existed but had null coords — backfill
+                cur.execute('UPDATE "Location" SET latitude=%s, longitude=%s WHERE id=%s', (lat, lng, row[0]))
+                return (row[0], lat, lng)
+
+            new_id = gen_id()
+            slug = _slugify(city)
+            cur.execute(
+                """
+                INSERT INTO "Location" (id, type, name, slug, "parentId", latitude, longitude, "updatedAt")
+                VALUES (%s, 'CITY'::"LocationType", %s, %s, %s, %s, %s, now())
+                ON CONFLICT (slug, type, "parentId") DO NOTHING
+                RETURNING id
+                """,
+                (new_id, city, slug, county_id, lat, lng),
+            )
+            ins = cur.fetchone()
+            if ins:
+                return (ins[0], lat, lng)
+            # Conflict (same slug under county): fetch the existing one.
+            cur.execute(
+                'SELECT id FROM "Location" WHERE slug=%s AND type=\'CITY\' AND "parentId"=%s LIMIT 1',
+                (slug, county_id),
+            )
+            ex = cur.fetchone()
+            if ex:
+                return (ex[0], lat, lng)
+
+        # No usable county — try the global seeded-city lookup.
+        return _resolve_global(cur, city)
+
+
+# Back-compat: original seeded-only resolver (still used by tests/fixtures).
+def resolve_location(conn: psycopg.Connection, city: str | None) -> tuple[str, float, float] | None:
+    if not city:
+        return None
+    with conn.cursor() as cur:
+        return _resolve_global(cur, city.strip())
