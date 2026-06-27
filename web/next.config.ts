@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
     // Crawled/owner images live on arbitrary HTTPS hosts; allow https remote
     // patterns. Tighten to specific CDNs once an image pipeline is in place.
     remotePatterns: [{ protocol: "https", hostname: "**" }],
+    // Next 16 blocks local image srcs with query strings unless allowlisted.
+    // The Google Places photo proxy uses /api/place-photo?ref=… (ref varies per
+    // image). Omitting `search` allows the query; the route validates `ref`.
+    localPatterns: [{ pathname: "/api/place-photo" }],
   },
   async headers() {
     return [
