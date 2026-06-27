@@ -110,6 +110,13 @@ PLACES = Source(
         ("equine veterinarian", "equine-veterinarian"),
         ("tack shop", "tack-shop"),
         ("horse feed store", "feed-forage"),
+        # Transportation & logistics
+        ("horse trailer dealer", "trailer-sales-rental-repair"),
+        ("horse hauling transport", "horse-hauling"),
+        # Health & veterinary specialists
+        ("equine dentist", "equine-dentistry"),
+        ("equine chiropractor", "chiropractic-bodywork"),
+        ("equine rehabilitation", "therapy-rehabilitation"),
     ],
 )
 
