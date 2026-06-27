@@ -5,6 +5,7 @@ import { useState } from "react";
 export function ClaimForm({ businessId }: { businessId: string }) {
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState("");
   const [verifyUrl, setVerifyUrl] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -28,17 +29,18 @@ export function ClaimForm({ businessId }: { businessId: string }) {
       return;
     }
     setStatus("done");
-    setVerifyUrl(data.verifyUrl ?? null);
+    setNotice(
+      data.message ??
+        "We've emailed a verification link to the listing's contact address. Open it to confirm ownership.",
+    );
+    setVerifyUrl(data.verifyUrl ?? null); // present only in non-production
   }
 
   if (status === "done") {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-900">
         <p className="font-semibold">Claim submitted ✓</p>
-        <p className="mt-1">
-          We&apos;ll email you a verification link to confirm ownership. (Email delivery is being
-          wired up — for now, use this link to verify:)
-        </p>
+        <p className="mt-1">{notice}</p>
         {verifyUrl && (
           <a href={verifyUrl} className="mt-2 inline-block break-all font-medium text-emerald-700 underline">
             {verifyUrl}

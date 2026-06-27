@@ -1,0 +1,124 @@
+"use client";
+
+import { useState } from "react";
+
+// Consumer inquiry / lead form (M6 / §3), modeled on ClaimForm. Posts to
+// /api/businesses/[id]/inquiry. Guests submit name + email + message; signed-in
+// users get name/email pre-filled (and the route stamps their userId so the lead
+// appears in /account/inquiries). Brand tokens: brass / pine / ink / cream / leather.
+export function InquiryForm({
+  businessId,
+  businessName,
+  defaultName,
+  defaultEmail,
+  isSignedIn,
+}: {
+  businessId: string;
+  businessName: string;
+  defaultName?: string | null;
+  defaultEmail?: string | null;
+  isSignedIn?: boolean;
+}) {
+  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+  const [message, setMessage] = useState("");
+
+  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setStatus("submitting");
+    setMessage("");
+    const form = new FormData(e.currentTarget);
+    const res = await fetch(`/api/businesses/${businessId}/inquiry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: form.get("name"),
+        email: form.get("email"),
+        phone: form.get("phone"),
+        message: form.get("message"),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setStatus("error");
+      setMessage(data.error ?? "Something went wrong. Please try again.");
+      return;
+    }
+    setStatus("done");
+  }
+
+  if (status === "done") {
+    return (
+      <div className="rounded-xl border border-pine/25 bg-pine/5 p-5 text-sm text-pine">
+        <p className="font-semibold">Inquiry sent ✓</p>
+        <p className="mt-1 text-ink/70">
+          We&apos;ve passed your message to {businessName}. They&apos;ll reply to your email.
+        </p>
+      </div>
+    );
+  }
+
+  const inputClass =
+    "mt-1 w-full rounded-lg border border-leather/25 bg-cream/40 px-3 py-2 text-ink focus:border-brass focus:outline-none focus:ring-2 focus:ring-brass/40";
+
+  return (
+    <form onSubmit={onSubmit} className="space-y-4">
+      <div>
+        <label htmlFor="inq-name" className="block text-sm font-medium text-pine">
+          Your name
+        </label>
+        <input
+          id="inq-name"
+          name="name"
+          required
+          defaultValue={defaultName ?? ""}
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label htmlFor="inq-email" className="block text-sm font-medium text-pine">
+          Email
+        </label>
+        <input
+          id="inq-email"
+          name="email"
+          type="email"
+          required
+          defaultValue={defaultEmail ?? ""}
+          className={inputClass}
+        />
+      </div>
+      <div>
+        <label htmlFor="inq-phone" className="block text-sm font-medium text-pine">
+          Phone (optional)
+        </label>
+        <input id="inq-phone" name="phone" className={inputClass} />
+      </div>
+      <div>
+        <label htmlFor="inq-message" className="block text-sm font-medium text-pine">
+          Message
+        </label>
+        <textarea
+          id="inq-message"
+          name="message"
+          required
+          rows={4}
+          placeholder={`Hi ${businessName}, I'm interested in…`}
+          className={inputClass}
+        />
+      </div>
+      {status === "error" && <p className="text-sm text-red-600">{message}</p>}
+      <button
+        type="submit"
+        disabled={status === "submitting"}
+        className="rounded-lg bg-pine px-5 py-2.5 font-semibold text-cream transition hover:bg-pine-light disabled:opacity-60"
+      >
+        {status === "submitting" ? "Sending…" : "Send inquiry"}
+      </button>
+      {!isSignedIn && (
+        <p className="text-xs text-ink/55">
+          You can send this as a guest. Sign in to track your inquiries in your account.
+        </p>
+      )}
+    </form>
+  );
+}

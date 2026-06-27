@@ -28,8 +28,16 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(url, 301);
   }
 
-  // Rate-limit the search/filter APIs.
-  if (pathname.startsWith("/api/search") || pathname.startsWith("/api/filter")) {
+  // Rate-limit the search/filter APIs and the guest-writable POSTs
+  // (/api/businesses/:id/inquiry, /api/businesses/:id/reviews) which are spam
+  // and email-bomb vectors. The shared cross-instance limiter (src/lib/ratelimit.ts)
+  // runs inside those route handlers; this is the coarse first-pass guard.
+  const isWritablePost = /^\/api\/businesses\/[^/]+\/(inquiry|reviews)$/.test(pathname);
+  if (
+    pathname.startsWith("/api/search") ||
+    pathname.startsWith("/api/filter") ||
+    isWritablePost
+  ) {
     const ip =
       request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       request.headers.get("x-real-ip") ||

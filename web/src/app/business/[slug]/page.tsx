@@ -13,6 +13,9 @@ import { StarRating } from "@/components/StarRating";
 import { JsonLd } from "@/components/JsonLd";
 import { localBusinessLd } from "@/lib/seo/jsonld";
 import { robots, isBusinessDetailIndexable } from "@/lib/seo/indexing";
+import { SaveHeartButton } from "@/components/saved/SaveHeartButton";
+import { InquiryForm } from "@/components/inquiry/InquiryForm";
+import { ReviewForm } from "@/components/reviews/ReviewForm";
 
 export const revalidate = 3600;
 
@@ -116,18 +119,27 @@ export default async function BusinessPage({
                   )}
                 </div>
               </div>
-              <div className="text-right">
-                <StarRating rating={business.rating} reviewCount={business.reviewCount} size="lg" />
-                {business.reviewCount > 0 && (
-                  <a
-                    href={googleHref}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-1 block text-xs text-brass hover:underline"
-                  >
-                    on Google →
-                  </a>
-                )}
+              <div className="flex items-start gap-3">
+                <div className="text-right">
+                  <StarRating rating={business.rating} reviewCount={business.reviewCount} size="lg" />
+                  {business.reviewCount > 0 && (
+                    <a
+                      href={googleHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block text-xs text-brass hover:underline"
+                    >
+                      on Google →
+                    </a>
+                  )}
+                </div>
+                <SaveHeartButton
+                  businessId={business.id}
+                  slug={business.slug}
+                  size="lg"
+                  withLabel
+                  selfFetch
+                />
               </div>
             </div>
 
@@ -211,6 +223,9 @@ export default async function BusinessPage({
                 ))}
               </ul>
             )}
+            <div className="mt-6">
+              <ReviewForm businessId={business.id} businessSlug={business.slug} />
+            </div>
           </section>
         </div>
 
@@ -254,6 +269,18 @@ export default async function BusinessPage({
               </ul>
             </div>
           )}
+
+          <div className="rounded-2xl border border-leather/15 bg-white p-5">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/55">
+              Contact this barn
+            </h2>
+            <p className="mt-1 text-sm text-ink/70">
+              Send an inquiry and {business.name} will reply to your email.
+            </p>
+            <div className="mt-4">
+              <InquiryForm businessId={business.id} businessName={business.name} />
+            </div>
+          </div>
 
           <div className="rounded-2xl border border-dashed border-leather/25 bg-white p-5 text-sm text-ink/70">
             <p className="font-medium text-pine">Is this your stable?</p>

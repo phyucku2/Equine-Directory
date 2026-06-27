@@ -1,0 +1,37 @@
+name: Migrate database
+
+# Apply pending Prisma migrations to Neon without running a full crawl.
+# Run this after merging schema changes and BEFORE promoting the deploy that
+# depends on them (e.g. the accounts tables). Requires the DATABASE_URL secret.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npx prisma migrate deploy
+          npx prisma migrate status

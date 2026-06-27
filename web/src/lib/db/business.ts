@@ -37,9 +37,25 @@ export const businessDetailInclude = {
     include: { category: true },
     orderBy: [{ isPrimary: "desc" }, { rank: "asc" }],
   },
-  images: { orderBy: { rank: "asc" } },
+  // Source-priority ordering: OWNER photos must sort ahead of GOOGLE/CRAWLER on
+  // the detail page (an owner upload overrides crawled photos without deleting
+  // them). The ImageSource enum is declared CRAWLER, OWNER, GOOGLE, so a plain
+  // `source: "asc"` does NOT put OWNER first — we order by source+rank here for a
+  // stable result, then hoist OWNER in code (see sortImagesBySource).
+  images: { orderBy: [{ source: "asc" }, { rank: "asc" }] },
   reviews: { where: { isApproved: true }, orderBy: { createdAt: "desc" } },
 } satisfies Prisma.BusinessInclude;
+
+// OWNER first, then GOOGLE, then CRAWLER — within each source, preserve rank.
+const IMAGE_SOURCE_PRIORITY: Record<string, number> = { OWNER: 0, GOOGLE: 1, CRAWLER: 2 };
+
+function sortImagesBySource<T extends { source: string; rank: number }>(images: T[]): T[] {
+  return [...images].sort(
+    (a, b) =>
+      (IMAGE_SOURCE_PRIORITY[a.source] ?? 99) - (IMAGE_SOURCE_PRIORITY[b.source] ?? 99) ||
+      a.rank - b.rank,
+  );
+}
 
 export type BusinessDetail = Prisma.BusinessGetPayload<{
   include: typeof businessDetailInclude;
@@ -62,10 +78,12 @@ export type BusinessCard = Prisma.BusinessGetPayload<{
 }>;
 
 export async function getBusinessBySlug(slug: string): Promise<BusinessDetail | null> {
-  return prisma.business.findFirst({
+  const business = await prisma.business.findFirst({
     where: { slug, isPublished: true },
     include: businessDetailInclude,
   });
+  if (business) business.images = sortImagesBySource(business.images);
+  return business;
 }
 
 export interface Paginated<T> {

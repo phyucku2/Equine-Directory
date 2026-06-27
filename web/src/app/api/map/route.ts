@@ -14,6 +14,7 @@ export async function GET() {
       categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } } },
     },
     select: {
+      id: true,
       slug: true,
       name: true,
       latitude: true,
@@ -42,6 +43,7 @@ export async function GET() {
       type: "Feature" as const,
       geometry: { type: "Point" as const, coordinates: [b.longitude, b.latitude] },
       properties: {
+        id: b.id,
         slug: b.slug,
         name: b.name,
         city: b.location?.name ?? "",

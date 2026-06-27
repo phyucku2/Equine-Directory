@@ -4,106 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
+import { StableCard, type StableMarker } from "@/components/stable/StableCard";
+import { SaveSearchButton, type SaveSearchFilters } from "@/components/map/SaveSearchButton";
 
 // Google Maps is loaded at runtime; we use the global namespace untyped.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const google: any;
 
-type StableMarker = {
-  slug: string;
-  name: string;
-  city: string;
-  rating: number | null;
-  reviewCount: number;
-  image: string | null;
-  featured: boolean;
-  verified: boolean;
-  offering: string;
-  priceFrom: number | null;
-  amenities: string[];
-  lng: number;
-  lat: number;
-};
-
 const DEFAULT_CENTER = { lat: 26.12, lng: -80.25 }; // Broward / South FL
 const DEFAULT_ZOOM = 9;
 const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
-
-function Stars({ rating, count }: { rating: number | null; count: number }) {
-  if (rating == null) return <span className="text-xs text-ink/45">No rating yet</span>;
-  return (
-    <span className="text-xs text-ink/60">
-      <span className="text-brass">★</span> {rating.toFixed(1)}
-      {count > 0 && <span className="text-ink/45"> ({count})</span>}
-    </span>
-  );
-}
-
-function StableCard({
-  s,
-  selected,
-  onHover,
-  innerRef,
-}: {
-  s: StableMarker;
-  selected: boolean;
-  onHover: () => void;
-  innerRef: (el: HTMLDivElement | null) => void;
-}) {
-  return (
-    <div
-      ref={innerRef}
-      onMouseEnter={onHover}
-      className={`overflow-hidden rounded-xl border bg-white shadow-sm transition ${
-        selected ? "border-brass ring-2 ring-brass" : "border-leather/15 hover:border-brass/50"
-      }`}
-    >
-      <Link href={`/business/${s.slug}`} className="block">
-        <div className="relative aspect-[16/10] w-full bg-cream-dark">
-          {s.image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={s.image} alt={s.name} className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-leather/30">
-              <svg viewBox="0 0 24 24" className="h-10 w-10" fill="currentColor" aria-hidden>
-                <path d="M4 18V8l8-4 8 4v10h-5v-6H9v6H4z" />
-              </svg>
-            </div>
-          )}
-          {/* Offering header on the listing (default "Stalls Available") */}
-          <span className="absolute left-2 top-2 rounded-full bg-pine/90 px-2.5 py-0.5 text-[11px] font-semibold text-white shadow-sm">
-            {s.offering}
-          </span>
-        </div>
-        <div className="p-3">
-          <div className="flex items-start justify-between gap-2">
-            <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
-            {s.priceFrom != null && (
-              <p className="shrink-0 text-sm font-semibold text-ink">
-                ${s.priceFrom.toLocaleString()}
-                <span className="text-xs font-normal text-ink/50">/mo</span>
-              </p>
-            )}
-          </div>
-          <p className="truncate text-xs text-ink/55">{s.city}</p>
-          <div className="mt-1">
-            <Stars rating={s.rating} count={s.reviewCount} />
-          </div>
-          {s.amenities.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {s.amenities.slice(0, 4).map((a) => (
-                <span key={a} className="rounded-full bg-pine/5 px-2 py-0.5 text-[11px] text-pine">
-                  {a}
-                </span>
-              ))}
-            </div>
-          )}
-        </div>
-      </Link>
-    </div>
-  );
-}
 
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -128,6 +39,9 @@ export function MapView() {
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [view, setView] = useState<"map" | "list">("map");
+  // Lightweight saved-id merge (M5): render hearts filled where the signed-in
+  // user has already favorited a listing. 401 (signed out) just yields no ids.
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -140,6 +54,23 @@ export function MapView() {
   }, [items, query, minRating, verifiedOnly]);
 
   const activeFilters = (minRating != null ? 1 : 0) + (verifiedOnly ? 1 : 0);
+
+  // Snapshot the current filters + map viewport for "Save this search" (M8a).
+  // Mirrors the /api/saved-searches filter shape (which mirrors /api/map params).
+  const currentFilters = (): SaveSearchFilters => {
+    const f: SaveSearchFilters = { category: "horse-boarding" };
+    const q = query.trim();
+    if (q) f.q = q;
+    if (minRating != null) f.rating = minRating;
+    if (verifiedOnly) f.verified = true;
+    const bounds = mapRef.current?.getBounds?.();
+    if (bounds) {
+      const ne = bounds.getNorthEast();
+      const sw = bounds.getSouthWest();
+      f.bbox = [sw.lng(), sw.lat(), ne.lng(), ne.lat()];
+    }
+    return f;
+  };
 
   function markerIcon(active: boolean) {
     return {
@@ -182,6 +113,16 @@ export function MapView() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
+  }, []);
+
+  // Merge in the user's saved business ids so hearts on the cards render filled.
+  useEffect(() => {
+    fetch("/api/saved-stables")
+      .then((r) => (r.ok ? r.json() : { ids: [] }))
+      .then((d: { ids?: string[] }) => {
+        if (Array.isArray(d.ids)) setSavedIds(new Set(d.ids));
+      })
+      .catch(() => {});
   }, []);
 
   // Init Google Maps.
@@ -314,6 +255,7 @@ export function MapView() {
               </span>
             )}
           </button>
+          <SaveSearchButton filters={currentFilters} />
         </div>
         {/* Active filter chips (dismissible) */}
         {activeFilters > 0 && (
@@ -358,6 +300,7 @@ export function MapView() {
               <StableCard
                 key={s.slug}
                 s={s}
+                saved={s.id ? savedIds.has(s.id) : undefined}
                 selected={selected === s.slug}
                 onHover={() => setSelected(s.slug)}
                 innerRef={(el) => {
@@ -427,6 +370,7 @@ export function MapView() {
                   >
                     <StableCard
                       s={s}
+                      saved={s.id ? savedIds.has(s.id) : undefined}
                       selected={selected === s.slug}
                       onHover={() => setSelected(s.slug)}
                       innerRef={() => {}}
@@ -456,6 +400,7 @@ export function MapView() {
                   <StableCard
                     key={s.slug}
                     s={s}
+                    saved={s.id ? savedIds.has(s.id) : undefined}
                     selected={selected === s.slug}
                     onHover={() => setSelected(s.slug)}
                     innerRef={() => {}}

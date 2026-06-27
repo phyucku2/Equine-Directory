@@ -1,17 +1,8 @@
-import { cookies } from "next/headers";
+import { auth } from "@/auth";
 
-// Minimal admin gate for the moderation UI: a shared key in an httpOnly cookie,
-// compared to ADMIN_KEY. This is an MVP guard — replace with real auth
-// (NextAuth/SSO) before exposing the admin surface publicly.
-export const ADMIN_COOKIE = "admin_key";
-
-export function adminKey(): string | undefined {
-  return process.env.ADMIN_KEY;
-}
-
+// Admin gate, now role-based. The legacy ADMIN_KEY cookie path is gone — admins
+// are resolved via the ADMIN_EMAILS allow-list inside the JWT callback (see
+// src/auth.ts). Same `isAdmin()` signature, so existing call sites keep working.
 export async function isAdmin(): Promise<boolean> {
-  const key = adminKey();
-  if (!key) return false; // admin disabled until ADMIN_KEY is configured
-  const store = await cookies();
-  return store.get(ADMIN_COOKIE)?.value === key;
+  return (await auth())?.user?.role === "ADMIN";
 }

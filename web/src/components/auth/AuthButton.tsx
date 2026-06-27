@@ -1,7 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useSession, signIn, signOut } from "next-auth/react";
+
+const ACCOUNT_LINKS = [
+  { href: "/account/saved", label: "Saved stables" },
+  { href: "/account/searches", label: "Saved searches" },
+  { href: "/account/inquiries", label: "Inquiries" },
+  { href: "/account/reviews", label: "Reviews" },
+  { href: "/account/notifications", label: "Notifications" },
+];
+
+function BellIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+      <path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -29,6 +47,23 @@ function GoogleIcon({ className }: { className?: string }) {
 export function AuthButton() {
   const { data, status } = useSession();
   const [open, setOpen] = useState(false);
+  const [unread, setUnread] = useState(0);
+
+  // Bell badge: fetch the unread notification count once signed in (M8b). 401
+  // (signed out) just yields 0.
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    let active = true;
+    fetch("/api/notifications")
+      .then((r) => (r.ok ? r.json() : { unread: 0 }))
+      .then((d: { unread?: number }) => {
+        if (active) setUnread(typeof d.unread === "number" ? d.unread : 0);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [status]);
 
   if (status === "loading") {
     return <div className="h-8 w-8 animate-pulse rounded-full bg-cream-dark" aria-hidden />;
@@ -49,46 +84,89 @@ export function AuthButton() {
 
   const user = data.user;
   const initial = (user.name ?? user.email ?? "?").charAt(0).toUpperCase();
+  const isOwner = user.role === "OWNER" || user.role === "ADMIN";
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Account menu"
-        aria-expanded={open}
-        className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-brass text-sm font-semibold text-white ring-1 ring-leather/20"
+    <div className="flex items-center gap-1">
+      {/* Notification bell with unread badge (M8b). */}
+      <Link
+        href="/account/notifications"
+        aria-label={unread > 0 ? `Notifications (${unread} unread)` : "Notifications"}
+        className="relative flex h-8 w-8 items-center justify-center rounded-full text-ink/70 transition hover:bg-cream-dark hover:text-ink"
       >
-        {user.image ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={user.image}
-            alt=""
-            referrerPolicy="no-referrer"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          initial
+        <BellIcon className="h-5 w-5" />
+        {unread > 0 && (
+          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-brass px-1 text-[10px] font-bold text-white">
+            {unread > 9 ? "9+" : unread}
+          </span>
         )}
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-leather/15 bg-white p-2 shadow-lg">
-            <div className="px-3 py-2">
-              {user.name && <p className="truncate text-sm font-semibold text-pine">{user.name}</p>}
-              {user.email && <p className="truncate text-xs text-ink/55">{user.email}</p>}
+      </Link>
+
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-label="Account menu"
+          aria-expanded={open}
+          className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-brass text-sm font-semibold text-white ring-1 ring-leather/20"
+        >
+          {user.image ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={user.image}
+              alt=""
+              referrerPolicy="no-referrer"
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            initial
+          )}
+        </button>
+        {open && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
+            <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-leather/15 bg-white p-2 shadow-lg">
+              <div className="px-3 py-2">
+                {user.name && <p className="truncate text-sm font-semibold text-pine">{user.name}</p>}
+                {user.email && <p className="truncate text-xs text-ink/55">{user.email}</p>}
+              </div>
+
+              <div className="my-1 border-t border-leather/10" />
+
+              {isOwner && (
+                <Link
+                  href="/owner"
+                  onClick={() => setOpen(false)}
+                  className="block rounded-lg px-3 py-2 text-sm font-semibold text-pine transition hover:bg-cream-dark"
+                >
+                  Barn dashboard
+                </Link>
+              )}
+
+              {ACCOUNT_LINKS.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setOpen(false)}
+                  className="block rounded-lg px-3 py-2 text-sm text-ink transition hover:bg-cream-dark"
+                >
+                  {link.label}
+                </Link>
+              ))}
+
+              <div className="my-1 border-t border-leather/10" />
+
+              <button
+                type="button"
+                onClick={() => signOut()}
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-ink transition hover:bg-cream-dark"
+              >
+                Sign out
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => signOut()}
-              className="w-full rounded-lg px-3 py-2 text-left text-sm text-ink transition hover:bg-cream-dark"
-            >
-              Sign out
-            </button>
-          </div>
-        </>
-      )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
