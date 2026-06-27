@@ -22,6 +22,8 @@ export async function GET() {
       reviewCount: true,
       isFeatured: true,
       verificationBadge: true,
+      amenities: true,
+      attributes: true,
       location: { select: { name: true } },
       categories: {
         where: PUBLIC_CATEGORY_WHERE,
@@ -34,22 +36,30 @@ export async function GET() {
     take: 2000,
   });
 
-  const features = rows.map((b) => ({
-    type: "Feature" as const,
-    geometry: { type: "Point" as const, coordinates: [b.longitude, b.latitude] },
-    properties: {
-      slug: b.slug,
-      name: b.name,
-      city: b.location?.name ?? "",
-      category: b.categories[0]?.category.name ?? "",
-      categorySlugs: b.categories.map((c) => c.category.slug),
-      rating: b.rating != null ? Number(b.rating) : null,
-      reviewCount: b.reviewCount,
-      image: b.images[0]?.url ?? null,
-      featured: b.isFeatured,
-      verified: b.verificationBadge !== "UNVERIFIED",
-    },
-  }));
+  const features = rows.map((b) => {
+    const attrs = (b.attributes ?? {}) as { offering?: string; priceFrom?: number };
+    return {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: [b.longitude, b.latitude] },
+      properties: {
+        slug: b.slug,
+        name: b.name,
+        city: b.location?.name ?? "",
+        category: b.categories[0]?.category.name ?? "",
+        categorySlugs: b.categories.map((c) => c.category.slug),
+        rating: b.rating != null ? Number(b.rating) : null,
+        reviewCount: b.reviewCount,
+        image: b.images[0]?.url ?? null,
+        featured: b.isFeatured,
+        verified: b.verificationBadge !== "UNVERIFIED",
+        // V1: every listing is a boarding facility -> "Stalls Available" by
+        // default; owners can override the offering later (Camp/Lessons/…).
+        offering: typeof attrs.offering === "string" ? attrs.offering : "Stalls Available",
+        priceFrom: typeof attrs.priceFrom === "number" ? attrs.priceFrom : null,
+        amenities: b.amenities ?? [],
+      },
+    };
+  });
 
   return NextResponse.json(
     { type: "FeatureCollection", features },
