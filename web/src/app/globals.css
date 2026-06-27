@@ -1,26 +1,25 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
+/* Clean, Zillow-like system: white, neutral grays, one light-blue accent, sans-serif.
+   Accent is a softer blue than Zillow's trademark #006AFF to stay clearly distinct. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-geist-sans); /* no decorative serif — keep it simple */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  --color-cream: #ffffff; /* page background (was warm cream) */
+  --color-cream-dark: #f3f4f6; /* subtle section / placeholder gray */
+  --color-ink: #16181d; /* near-black text */
+  --color-pine: #16181d; /* headings + primary (black) buttons */
+  --color-pine-light: #2b2f36;
+  --color-brass: #3b82f6; /* the single accent — lighter blue, not Zillow blue */
+  --color-brass-light: #60a5fa;
+  --color-leather: #9aa0a6; /* neutral gray for borders */
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-cream);
+  color: var(--color-ink);
 }

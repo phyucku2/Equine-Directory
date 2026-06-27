@@ -6,5 +6,5 @@ export const SITE = {
   shortName: process.env.NEXT_PUBLIC_SITE_SHORT_NAME ?? "The Stable Directory",
   domain: process.env.NEXT_PUBLIC_SITE_DOMAIN ?? "thestabledirectory.com",
   description:
-    "Find trusted equine businesses in Florida: boarding, training, veterinary, farriers, tack & feed, transportation and more.",
+    "Find horse stables and barns near you across Florida — boarding, training, and facilities, all in one place. Florida-first, expanding nationwide.",
 } as const;

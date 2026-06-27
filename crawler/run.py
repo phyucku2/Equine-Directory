@@ -27,7 +27,33 @@ from equine_crawler.pipeline.geocode import resolve_location
 from equine_crawler.pipeline.normalize import normalize, slugify
 from equine_crawler.pipeline.upsert import load_category_ids, upsert_listing
 from equine_crawler.registry import get_source
-from equine_crawler.schemas import Grade, NormalizedListing
+from equine_crawler.schemas import Grade, GradedCategory, NormalizedListing
+
+
+# Google Places primaryType values that are clearly NOT boarding barns. Places
+# the boarding/equestrian search returns with one of these (e.g. Tradewinds Park
+# = "park") are routed to the moderation queue instead of auto-publishing.
+# Decision is on primaryType only (Google's single best classification) to avoid
+# excluding a real barn that merely carries a generic secondary type.
+_NONBARN_PRIMARY_TYPES = {
+    "park", "national_park", "state_park", "dog_park", "amusement_park", "water_park",
+    "tourist_attraction", "historical_landmark", "historical_place", "monument",
+    "school", "primary_school", "secondary_school", "preschool", "university",
+    "campground", "rv_park", "hiking_area", "national_forest",
+    "hotel", "motel", "lodging", "resort_hotel", "bed_and_breakfast", "guest_house",
+    "local_government_office", "government_office", "city_hall", "courthouse",
+    "hospital", "pharmacy", "shopping_mall", "supermarket", "grocery_store",
+    "department_store", "store", "clothing_store", "pet_store", "home_goods_store",
+    "restaurant", "cafe", "coffee_shop", "bar", "fast_food_restaurant",
+    "church", "place_of_worship", "mosque", "synagogue", "hindu_temple",
+    "golf_course", "gym", "fitness_center", "library", "museum", "zoo", "aquarium",
+    "parking", "gas_station", "real_estate_agency", "bank", "atm",
+    "airport", "transit_station", "bus_station",
+}
+
+
+def _is_nonbarn(primary_type: str | None) -> bool:
+    return bool(primary_type) and primary_type in _NONBARN_PRIMARY_TYPES
 
 
 def _start_job(conn, source_key: str, url: str) -> str:
@@ -89,15 +115,40 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     skipped += 1
                     print(f"  skip (no location): {n.name} [{n.city}]")
                     continue
-                location_id, lat, lng = loc
+                location_id, clat, clng = loc
+                # Prefer the source's exact coordinates (Google Places) over the
+                # city centroid so map dots land on the actual stable.
+                lat = n.latitude if n.latitude is not None else clat
+                lng = n.longitude if n.longitude is not None else clng
 
-                graded = grade_listing(n.candidate_categories, n.name, n.description or "", use_llm=use_llm)
+                if source.kind == "places":
+                    # Google returned this for a category-targeted search. Auto-
+                    # publish genuine facilities, but route clear non-barns (parks,
+                    # schools, hotels, stores, …) to moderation instead of the map.
+                    nonbarn = _is_nonbarn(n.primary_type)
+                    grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
+                    if nonbarn:
+                        print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
+                    graded = [
+                        GradedCategory(
+                            category_slug=c,
+                            grade=grade,
+                            confidence=0.4 if nonbarn else 0.9,
+                            is_primary=(i == 0),
+                        )
+                        for i, c in enumerate(n.candidate_categories)
+                    ]
+                else:
+                    graded = grade_listing(n.candidate_categories, n.name, n.description or "", use_llm=use_llm)
                 slug = slugify(n.name, n.city or "")
+                attributes = {"googleMapsUri": n.google_maps_uri} if n.google_maps_uri else {}
                 normalized = NormalizedListing(
                     name=n.name, slug=slug, address=n.address or n.city or "FL",
                     city=n.city, phone=n.phone, website=n.website, description=n.description,
                     latitude=lat, longitude=lng, location_id=location_id,
                     graded_categories=graded, source_url=n.source_url, external_id=n.external_id,
+                    attributes=attributes, rating=n.rating, rating_count=n.rating_count,
+                    hours=n.hours, photos=n.photos,
                 )
 
                 existing = find_existing(conn, slug, n.name, n.phone, n.website)

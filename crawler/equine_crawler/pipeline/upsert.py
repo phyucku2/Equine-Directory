@@ -6,6 +6,8 @@ A business is published iff it has >=1 publishable (grade-3/approved) category.
 
 from __future__ import annotations
 
+import urllib.parse
+
 import psycopg
 from psycopg.types.json import Jsonb
 
@@ -20,6 +22,7 @@ def load_category_ids(conn: psycopg.Connection) -> dict[str, str]:
 
 
 def _upsert_business(conn: psycopg.Connection, n: NormalizedListing, existing_id: str | None) -> str:
+    hours = Jsonb(n.hours) if n.hours else None
     with conn.cursor() as cur:
         if existing_id:
             cur.execute(
@@ -28,7 +31,11 @@ def _upsert_business(conn: psycopg.Connection, n: NormalizedListing, existing_id
                   name=%s, description=COALESCE(%s, description),
                   phone=COALESCE(%s, phone), website=COALESCE(%s, website),
                   address=%s, latitude=%s, longitude=%s, "locationId"=%s,
-                  attributes=%s, "isPublished"="isPublished" OR %s,
+                  attributes=COALESCE(attributes, '{}'::jsonb) || %s,
+                  rating=COALESCE(%s, rating),
+                  "reviewCount"=COALESCE(%s, "reviewCount"),
+                  "hoursOfOperation"=COALESCE(%s, "hoursOfOperation"),
+                  "isPublished"="isPublished" OR %s,
                   "dataSourceUrl"=COALESCE(%s, "dataSourceUrl"),
                   "lastCrawledAt"=now(), "updatedAt"=now()
                 WHERE id=%s
@@ -36,6 +43,7 @@ def _upsert_business(conn: psycopg.Connection, n: NormalizedListing, existing_id
                 (
                     n.name, n.description, n.phone, n.website, n.address,
                     n.latitude, n.longitude, n.location_id, Jsonb(n.attributes),
+                    n.rating, n.rating_count, hours,
                     n.is_published, n.source_url, existing_id,
                 ),
             )
@@ -47,10 +55,12 @@ def _upsert_business(conn: psycopg.Connection, n: NormalizedListing, existing_id
             INSERT INTO "Business"
               (id, name, slug, description, phone, website, address,
                latitude, longitude, "locationId", attributes,
+               rating, "reviewCount", "hoursOfOperation",
                "verificationBadge", "isVerified", "isPublished",
                "dataSourceUrl", "externalSourceId", "lastCrawledAt", "updatedAt")
             VALUES
               (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+               %s, %s, %s,
                'UNVERIFIED'::"VerificationBadge", false, %s,
                %s, %s, now(), now())
             ON CONFLICT (slug) DO UPDATE SET
@@ -60,10 +70,40 @@ def _upsert_business(conn: psycopg.Connection, n: NormalizedListing, existing_id
             (
                 new_id, n.name, n.slug, n.description, n.phone, n.website, n.address,
                 n.latitude, n.longitude, n.location_id, Jsonb(n.attributes),
+                n.rating, (n.rating_count or 0), hours,
                 n.is_published, n.source_url, n.external_id,
             ),
         )
         return cur.fetchone()[0]
+
+
+def _upsert_images(conn: psycopg.Connection, business_id: str, n: NormalizedListing) -> None:
+    """Refresh Google Places photos for a business. Never touches owner uploads.
+
+    Stores the place-photo proxy path (resolved server-side via /api/place-photo
+    using the server Places key) plus author attribution in the caption.
+    """
+    if not n.photos:
+        return
+    with conn.cursor() as cur:
+        cur.execute(
+            'DELETE FROM "BusinessImage" WHERE "businessId"=%s AND source=%s::"ImageSource"',
+            (business_id, "GOOGLE"),
+        )
+        for rank, ph in enumerate(n.photos):
+            ref = ph.get("ref")
+            if not ref:
+                continue
+            url = "/api/place-photo?ref=" + urllib.parse.quote(ref, safe="")
+            caption = ph.get("attribution") or "Google"
+            cur.execute(
+                """
+                INSERT INTO "BusinessImage"
+                  (id, "businessId", url, "altText", caption, rank, source, "uploadedAt")
+                VALUES (%s, %s, %s, %s, %s, %s, 'GOOGLE'::"ImageSource", now())
+                """,
+                (gen_id(), business_id, url, n.name, caption, rank),
+            )
 
 
 def _upsert_categories(
@@ -127,6 +167,7 @@ def upsert_listing(
     action = "updated" if existing_id else "created"
     business_id = _upsert_business(conn, n, existing_id)
     _upsert_categories(conn, business_id, n, cat_ids)
+    _upsert_images(conn, business_id, n)
     _recompute_published(conn, business_id)
     _audit(conn, business_id, "BUSINESS_CREATED" if action == "created" else "BUSINESS_UPDATED")
     return business_id, action

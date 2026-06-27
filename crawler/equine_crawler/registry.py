@@ -23,6 +23,12 @@ class Source:
     delay_seconds: float = 2.0
     max_concurrency: int = 3
     respect_robots: bool = True
+    # "crawl" = HTML scrape via crawl4ai; "places" = Google Places API;
+    # "fixtures" handled by key.
+    kind: str = "crawl"
+    # Places: search areas (text) x query_specs (phrase, category slug).
+    areas: list[str] = field(default_factory=list)
+    query_specs: list[tuple[str, str]] = field(default_factory=list)
 
 
 # A directory-style source: one row per listing card. Selectors are illustrative
@@ -31,9 +37,9 @@ OHORSE = Source(
     key="ohorse",
     name="O Horse! County Directory",
     urls=[
-        # Example county directory pages (boarding/training/services).
-        "https://www.ohorse.com/horse-boarding/florida/marion-county/",
-        "https://www.ohorse.com/horse-trainers/florida/marion-county/",
+        # Broward County directory pages (Davie & the South FL equestrian belt).
+        "https://www.ohorse.com/horse-boarding/florida/broward-county/",
+        "https://www.ohorse.com/horse-trainers/florida/broward-county/",
     ],
     css_schema={
         "name": "ohorse_listing",
@@ -60,7 +66,43 @@ FIXTURES = Source(
 )
 
 
-REGISTRY: dict[str, Source] = {s.key: s for s in [OHORSE, FIXTURES]}
+# Google Places API source — authoritative local-business data (name, address,
+# phone, website, geo). Text-search queries target the Davie/Broward belt; the
+# grading step confirms which results are truly boarding/training stables.
+PLACES = Source(
+    key="places",
+    name="Google Places",
+    urls=[],
+    css_schema={},
+    candidate_categories=["horse-boarding"],
+    kind="places",
+    areas=[
+        "Davie FL",
+        "Southwest Ranches FL",
+        "Cooper City FL",
+        "Parkland FL",
+        "Coconut Creek FL",
+        "Plantation FL",
+        "Coral Springs FL",
+        "Broward County FL",
+    ],
+    # (search phrase, category slug) — the slug matches the seeded taxonomy and
+    # is treated as confirmed evidence (Google returned it for that search).
+    query_specs=[
+        ("horse boarding", "horse-boarding"),
+        ("horse stables", "horse-boarding"),
+        ("equestrian center", "horse-boarding"),
+        ("horse trainer", "trainer-instructor"),
+        ("riding lessons", "trainer-instructor"),
+        ("horse farrier", "farrier"),
+        ("equine veterinarian", "equine-veterinarian"),
+        ("tack shop", "tack-shop"),
+        ("horse feed store", "feed-forage"),
+    ],
+)
+
+
+REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, OHORSE, FIXTURES]}
 
 
 def get_source(key: str) -> Source:

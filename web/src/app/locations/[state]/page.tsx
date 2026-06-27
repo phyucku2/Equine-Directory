@@ -20,8 +20,8 @@ export async function generateMetadata({
   const loc = await getStateBySlug(state);
   if (!loc) return { title: "State not found" };
   return {
-    title: `Equine businesses in ${loc.name}`,
-    description: `Browse equine businesses and services across ${loc.name} by county.`,
+    title: `Horse Stables in ${loc.name}`,
+    description: `Browse horse stables and barns across ${loc.name} by county — boarding, training, and facilities.`,
     alternates: { canonical: absoluteUrl(stateUrl(state)) },
   };
 }
@@ -35,14 +35,14 @@ export default async function StatePage({ params }: { params: Promise<{ state: s
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <Breadcrumbs items={[{ name: "Home", url: "/" }, { name: loc.name, url: stateUrl(state) }]} />
-      <h1 className="mt-4 text-3xl font-bold text-stone-900">Equine businesses in {loc.name}</h1>
-      <p className="mt-1 text-stone-500">Browse by county.</p>
+      <h1 className="mt-4 text-3xl font-semibold text-pine">Horse stables across {loc.name}</h1>
+      <p className="mt-1 text-ink/55">Browse by county.</p>
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {counties.map((c) => (
           <Link
             key={c.id}
             href={countyUrl(state, c.slug)}
-            className="rounded-lg border border-stone-200 bg-white px-4 py-3 text-stone-700 transition hover:border-emerald-300 hover:text-emerald-800"
+            className="rounded-lg border border-leather/15 bg-white px-4 py-3 text-ink/80 transition hover:border-brass hover:text-brass"
           >
             {c.name}
           </Link>

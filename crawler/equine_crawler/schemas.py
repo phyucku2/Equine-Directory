@@ -37,10 +37,24 @@ class RawListing(BaseModel):
     phone: str | None = None
     website: str | None = None
     description: str | None = None
+    # Exact coordinates when the source provides them (e.g. Google Places);
+    # falls back to the seeded city centroid during geocoding.
+    latitude: float | None = None
+    longitude: float | None = None
     # Candidate category slugs proposed by the source (to be graded).
     candidate_categories: list[str] = Field(default_factory=list)
     source_url: str | None = None
     external_id: str | None = None
+    # Google Places place classification (used to filter out non-barns).
+    primary_type: str | None = None
+    types: list[str] = Field(default_factory=list)
+    # Google Places enrichment (optional; absent for other sources).
+    rating: float | None = None
+    rating_count: int | None = None
+    business_status: str | None = None
+    hours: dict[str, Any] | None = None  # Places regularOpeningHours
+    google_maps_uri: str | None = None
+    photos: list[dict[str, Any]] = Field(default_factory=list)  # [{ref, attribution}]
 
     @field_validator("name")
     @classmethod
@@ -78,6 +92,11 @@ class NormalizedListing(BaseModel):
     source_url: str | None = None
     external_id: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
+    # Google Places enrichment passed through to the DB.
+    rating: float | None = None
+    rating_count: int | None = None
+    hours: dict[str, Any] | None = None
+    photos: list[dict[str, Any]] = Field(default_factory=list)
 
     @property
     def is_published(self) -> bool:

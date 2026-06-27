@@ -1,0 +1,99 @@
+name: Crawl listings
+
+# Manual trigger. The crawler can't run from the dev sandbox (egress blocks
+# Neon + ohorse), so it runs here, where the runner can reach both.
+#
+# Prerequisites (repo Settings -> Secrets and variables -> Actions):
+#   - DATABASE_URL          (required)        Neon connection string
+#   - GOOGLE_MAPS_API_KEY   (for places)      Google Places API key
+#   - GEMINI_API_KEY / ANTHROPIC_API_KEY  (optional)  only for LLM grading
+#
+# The taxonomy (categories + FL locations incl. Broward cities) is seeded in the
+# target DB by a Vercel deploy (vercel-build runs migrate; seed is run once).
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Source key"
+        type: choice
+        options: [places, ohorse, fixtures]
+        default: places
+      limit:
+        description: "Max listings to pull"
+        type: string
+        default: "200"
+      use_llm:
+        description: "Use LLM grading (ignored for places; needs an API key secret)"
+        type: boolean
+        default: false
+      seed:
+        description: "Seed taxonomy (categories + FL locations) into the DB first"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Chromium (ohorse live crawl only)
+        if: ${{ inputs.source == 'ohorse' }}
+        run: python -m playwright install --with-deps chromium
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      # Migrations must always run before the crawl (the crawler writes columns/
+      # types defined by them, e.g. the widened BusinessImage.url for photo refs).
+      - name: Apply DB migrations
+        working-directory: web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+
+      - name: Seed taxonomy (categories + FL locations)
+        if: ${{ inputs.seed }}
+        working-directory: web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: npx prisma db seed
+
+      - name: Run crawler
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          ARGS="--source ${{ inputs.source }} --limit ${{ inputs.limit }}"
+          if [ "${{ inputs.use_llm }}" != "true" ]; then
+            ARGS="$ARGS --no-llm"
+          fi
+          echo "Running: python run.py $ARGS"
+          python run.py $ARGS
