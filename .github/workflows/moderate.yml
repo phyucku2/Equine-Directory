@@ -1,0 +1,55 @@
+name: Moderate listings
+
+# Manual moderation (one-shot). Runs here because the dev sandbox can't reach
+# Neon. `list` dumps the review queue; `approve`/`reject` act on every
+# PENDING_REVIEW item whose business name matches `query` (case-insensitive
+# substring). Mirrors the /admin/review UI logic (web/src/lib/db/moderation.ts).
+#
+# Prerequisites (repo Settings -> Secrets and variables -> Actions):
+#   - DATABASE_URL       (required)   Neon connection string
+#   - REVALIDATE_URL / REVALIDATE_SECRET  (optional)  refresh the live site after approve
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "list = show queue · approve/reject = act on matches"
+        type: choice
+        options: [list, approve, reject]
+        default: list
+      query:
+        description: "Business-name substring (required for approve/reject)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: moderate
+  cancel-in-progress: false
+
+jobs:
+  moderate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run moderation
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REVALIDATE_URL: ${{ secrets.REVALIDATE_URL }}
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+        run: |
+          python moderate.py --action "${{ inputs.action }}" --query "${{ inputs.query }}"
