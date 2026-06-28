@@ -74,6 +74,70 @@ def _recompute_published(cur, business_id: str) -> None:
     )
 
 
+def _set_category(cur, business_id: str, category_id: str, approve: bool) -> None:
+    """Apply one approve/reject decision to a single category assignment + audit."""
+    if approve:
+        cur.execute(
+            """
+            UPDATE "BusinessCategory"
+            SET grade='GRADE_3_CONFIRMED', "gradeSource"='STAFF_VERIFIED',
+                "reviewStatus"='APPROVED', "reviewedBy"=%s, "reviewedAt"=now(), "updatedAt"=now()
+            WHERE "businessId"=%s AND "categoryId"=%s
+            """,
+            ("github-actions", business_id, category_id),
+        )
+    else:
+        cur.execute(
+            """
+            UPDATE "BusinessCategory"
+            SET "reviewStatus"='REJECTED', "gradeSource"='STAFF_VERIFIED',
+                "reviewedBy"=%s, "reviewedAt"=now(), "updatedAt"=now()
+            WHERE "businessId"=%s AND "categoryId"=%s
+            """,
+            ("github-actions", business_id, category_id),
+        )
+    cur.execute(
+        'INSERT INTO "AuditLog" (id, action, "entityType", "entityId", "performedBy", "createdAt") '
+        "VALUES (%s, %s, 'BusinessCategory', %s, 'github-actions', now())",
+        (gen_id(), "CATEGORY_APPROVED" if approve else "CATEGORY_REJECTED", f"{business_id}:{category_id}"),
+    )
+
+
+def _apply_decisions(conn, path: str) -> int:
+    """Batch-apply a committed decisions file (CSV: slug,decision). For each
+    business slug, applies the decision to all its PENDING_REVIEW categories."""
+    import csv as _csv
+
+    with open(path) as fh:
+        decisions = [(r["slug"].strip(), r["decision"].strip().lower()) for r in _csv.DictReader(fh)]
+    print(f"Applying {len(decisions)} decision(s) from {path}\n")
+    applied = 0
+    with conn.cursor() as cur:
+        for slug, decision in decisions:
+            if decision not in ("approve", "reject"):
+                print(f"  ? skip (bad decision {decision!r}): {slug}")
+                continue
+            cur.execute(
+                f"""
+                SELECT bc."businessId", bc."categoryId"
+                FROM "BusinessCategory" bc
+                JOIN "Business" b ON b.id = bc."businessId"
+                WHERE b.slug = %s AND {_PENDING_WHERE}
+                """,
+                (slug,),
+            )
+            cats = cur.fetchall()
+            if not cats:
+                continue  # already moderated or unknown slug
+            for business_id, category_id in cats:
+                _set_category(cur, business_id, category_id, decision == "approve")
+            _recompute_published(cur, cats[0][0])
+            applied += 1
+            print(f"  {decision}d: {slug}")
+    print(f"\nApplied to {applied} business(es).")
+    return applied
+
+
 def _moderate(conn, query: str, approve: bool) -> int:
     action = "approve" if approve else "reject"
     with conn.cursor() as cur:
@@ -150,23 +214,30 @@ def _revalidate() -> None:
         print(f"  revalidate: failed ({exc})")
 
 
+_DECISIONS_FILE = "moderation_decisions.csv"
+
+
 def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(description="Equine Directory moderation CLI")
-    parser.add_argument("--action", choices=["list", "approve", "reject"], default="list")
+    parser.add_argument("--action", choices=["list", "approve", "reject", "apply"], default="list")
     parser.add_argument("--query", default="", help="business-name substring (approve/reject)")
+    parser.add_argument("--file", default=_DECISIONS_FILE, help="decisions CSV for --action apply")
     args = parser.parse_args()
 
     with connect() as conn:
         if args.action == "list":
             _list(conn)
             return
-        if not args.query.strip():
-            raise SystemExit("--query is required for approve/reject")
-        n = _moderate(conn, args.query.strip(), approve=(args.action == "approve"))
-        if n:
-            print(f"\n{args.action}d {n} category assignment(s).")
-    if args.action == "approve":
+        if args.action == "apply":
+            _apply_decisions(conn, args.file)
+        else:
+            if not args.query.strip():
+                raise SystemExit("--query is required for approve/reject")
+            n = _moderate(conn, args.query.strip(), approve=(args.action == "approve"))
+            if n:
+                print(f"\n{args.action}d {n} category assignment(s).")
+    if args.action in ("approve", "apply"):
         _revalidate()
 
 
