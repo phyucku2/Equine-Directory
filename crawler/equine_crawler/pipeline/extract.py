@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.request
 from pathlib import Path
 
@@ -43,6 +44,13 @@ _PLACES_FIELDS = ",".join(
 )
 
 _MAX_PHOTOS = 3
+
+# Google Places Text Search returns up to 20 results per page. Dense counties
+# (Ocala, Wellington, Aubrey, …) have more, so CRAWL_MAX_PAGES > 1 follows the
+# nextPageToken to record the true count. Default 1 page (breadth runs); the
+# surgical "deep" mode sets this to 3 (~60/search).
+_MAX_PAGES = max(1, int(os.environ.get("CRAWL_MAX_PAGES", "1")))
+_PAGE_DELAY_S = 2.0  # nextPageToken needs a moment to become valid
 
 
 def _places_photos(photos: list[dict] | None) -> list[dict]:
@@ -92,70 +100,88 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
     if not api_key:
         raise RuntimeError("GOOGLE_MAPS_API_KEY is not set (see crawler/.env.example)")
 
+    # Field mask must include nextPageToken when paginating.
+    field_mask = _PLACES_FIELDS + (",nextPageToken" if _MAX_PAGES > 1 else "")
+
+    def _fetch_page(query: str, page_token: str | None) -> dict:
+        payload = {"textQuery": query, "regionCode": "US"}
+        if page_token:
+            payload["pageToken"] = page_token
+        req = urllib.request.Request(
+            _PLACES_ENDPOINT,
+            data=json.dumps(payload).encode(),
+            method="POST",
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": field_mask,
+            },
+        )
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read())
+
     by_id: dict[str, RawListing] = {}
     order: list[str] = []
     for phrase, category in source.query_specs:
         for area in source.areas:
             query = f"{phrase} {area}"
-            body = json.dumps({"textQuery": query, "regionCode": "US"}).encode()
-            req = urllib.request.Request(
-                _PLACES_ENDPOINT,
-                data=body,
-                method="POST",
-                headers={
-                    "Content-Type": "application/json",
-                    "X-Goog-Api-Key": api_key,
-                    "X-Goog-FieldMask": _PLACES_FIELDS,
-                },
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    data = json.loads(resp.read())
-            except Exception as exc:  # noqa: BLE001
-                print(f"[places] query failed {query!r}: {exc}", flush=True)
-                continue
-
-            places = data.get("places", [])
-            print(f"[places] {query!r} -> {len(places)} results", flush=True)
-            for p in places:
-                pid = p.get("id")
-                name = (p.get("displayName") or {}).get("text")
-                if not pid or not name:
-                    continue
-                # Skip permanently-closed places — don't list dead barns.
-                if p.get("businessStatus") == "CLOSED_PERMANENTLY":
-                    continue
-                if pid in by_id:
-                    # Same place surfaced by another category search — merge.
-                    cats = by_id[pid].candidate_categories
-                    if category not in cats:
-                        cats.append(category)
-                    continue
-                loc = p.get("location") or {}
-                by_id[pid] = RawListing(
-                    name=name,
-                    address=p.get("formattedAddress"),
-                    city=_places_city(p.get("addressComponents")),
-                    county=_places_county(p.get("addressComponents")),
-                    state=_places_state(p.get("addressComponents")),
-                    phone=p.get("nationalPhoneNumber"),
-                    website=p.get("websiteUri"),
-                    description=(p.get("editorialSummary") or {}).get("text"),
-                    latitude=loc.get("latitude"),
-                    longitude=loc.get("longitude"),
-                    candidate_categories=[category],
-                    source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
-                    external_id=f"google:{pid}",
-                    primary_type=p.get("primaryType"),
-                    types=p.get("types") or [],
-                    rating=p.get("rating"),
-                    rating_count=p.get("userRatingCount"),
-                    business_status=p.get("businessStatus"),
-                    hours=p.get("regularOpeningHours"),
-                    google_maps_uri=p.get("googleMapsUri"),
-                    photos=_places_photos(p.get("photos")),
-                )
-                order.append(pid)
+            token: str | None = None
+            page = 0
+            total = 0
+            while page < _MAX_PAGES:
+                try:
+                    data = _fetch_page(query, token)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"[places] query failed {query!r} (page {page + 1}): {exc}", flush=True)
+                    break
+                places = data.get("places", [])
+                total += len(places)
+                page += 1
+                for p in places:
+                    pid = p.get("id")
+                    name = (p.get("displayName") or {}).get("text")
+                    if not pid or not name:
+                        continue
+                    # Skip permanently-closed places — don't list dead barns.
+                    if p.get("businessStatus") == "CLOSED_PERMANENTLY":
+                        continue
+                    if pid in by_id:
+                        # Same place surfaced by another search — merge categories.
+                        cats = by_id[pid].candidate_categories
+                        if category not in cats:
+                            cats.append(category)
+                        continue
+                    loc = p.get("location") or {}
+                    by_id[pid] = RawListing(
+                        name=name,
+                        address=p.get("formattedAddress"),
+                        city=_places_city(p.get("addressComponents")),
+                        county=_places_county(p.get("addressComponents")),
+                        state=_places_state(p.get("addressComponents")),
+                        phone=p.get("nationalPhoneNumber"),
+                        website=p.get("websiteUri"),
+                        description=(p.get("editorialSummary") or {}).get("text"),
+                        latitude=loc.get("latitude"),
+                        longitude=loc.get("longitude"),
+                        candidate_categories=[category],
+                        source_url=f"https://www.google.com/maps/place/?q=place_id:{pid}",
+                        external_id=f"google:{pid}",
+                        primary_type=p.get("primaryType"),
+                        types=p.get("types") or [],
+                        rating=p.get("rating"),
+                        rating_count=p.get("userRatingCount"),
+                        business_status=p.get("businessStatus"),
+                        hours=p.get("regularOpeningHours"),
+                        google_maps_uri=p.get("googleMapsUri"),
+                        photos=_places_photos(p.get("photos")),
+                    )
+                    order.append(pid)
+                token = data.get("nextPageToken")
+                if not token:
+                    break
+                time.sleep(_PAGE_DELAY_S)
+            suffix = f" ({page} pages)" if page > 1 else ""
+            print(f"[places] {query!r} -> {total} results{suffix}", flush=True)
 
     listings = [by_id[pid] for pid in order]
     return listings[:limit] if limit else listings

@@ -84,6 +84,10 @@ on:
         description: "Seed taxonomy first (OFF for already-seeded states; turn ON when adding a NEW state)"
         type: boolean
         default: false
+      deep:
+        description: "Deep surgical re-crawl: dense counties only, paginated (~60/search) for true counts"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -144,6 +148,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           CRAWL_STATE: ${{ inputs.state }}
+          CRAWL_DEEP: ${{ inputs.deep && '1' || '' }}
+          CRAWL_MAX_PAGES: ${{ inputs.deep && '3' || '1' }}
         run: |
           ARGS="--source ${{ inputs.source }} --limit ${{ inputs.limit }}"
           if [ "${{ inputs.use_llm }}" != "true" ]; then

@@ -8,11 +8,17 @@ respect each site's robots.txt / ToS (constitution 2.5).
 
 from __future__ import annotations
 
+import csv
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .us_counties import STATE_COUNTY_AREAS
+
+# Dense counties (>20 boarding results on >=1 search) flagged from prior crawl
+# logs — the targets for the surgical "deep" (paginated) re-crawl.
+_DENSE_CSV = Path(__file__).resolve().parents[1] / "dense_counties.csv"
 
 
 @dataclass(frozen=True)
@@ -97,13 +103,28 @@ def _active_areas() -> list[str]:
     Defaults to Florida. Lets the GitHub Actions form choose one state per run so
     national rollout happens one affordable batch at a time."""
     code = (os.environ.get("CRAWL_STATE") or "FL").strip().upper()
-    if code == "FL":
-        return _FL_AREAS
-    if code in STATE_COUNTY_AREAS:
-        return STATE_COUNTY_AREAS[code]
-    # Fail loud rather than silently crawling Florida on a typo / unseeded state.
-    known = ", ".join(["FL", *sorted(STATE_COUNTY_AREAS)])
-    raise SystemExit(f"CRAWL_STATE={code!r} is not a known state. Known: {known}")
+    if code != "FL" and code not in STATE_COUNTY_AREAS:
+        # Fail loud rather than silently crawling Florida on a typo / unseeded state.
+        known = ", ".join(["FL", *sorted(STATE_COUNTY_AREAS)])
+        raise SystemExit(f"CRAWL_STATE={code!r} is not a known state. Known: {known}")
+    full = _FL_AREAS if code == "FL" else STATE_COUNTY_AREAS[code]
+
+    # Surgical deep mode: re-crawl only this state's dense counties (paginated via
+    # CRAWL_MAX_PAGES) to record their true counts instead of the 20-cap.
+    if os.environ.get("CRAWL_DEEP", "").strip().lower() in ("1", "true", "yes"):
+        dense = _dense_areas(code)
+        if dense:
+            print(f"[registry] deep mode: {len(dense)} dense {code} counties", flush=True)
+            return dense
+        print(f"[registry] deep mode: no dense list for {code}; using all {len(full)}", flush=True)
+    return full
+
+
+def _dense_areas(code: str) -> list[str]:
+    if not _DENSE_CSV.exists():
+        return []
+    with open(_DENSE_CSV) as fh:
+        return [r["area"] for r in csv.DictReader(fh) if r["state"].strip().upper() == code]
 
 
 # Google Places API source — authoritative local-business data (name, address,
