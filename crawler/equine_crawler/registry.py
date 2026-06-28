@@ -100,25 +100,36 @@ PLACES = Source(
     ],
     # (search phrase, category slug) — the slug matches the seeded taxonomy and
     # is treated as confirmed evidence (Google returned it for that search).
+    #
+    # BOARDING-ONLY for now: V1 is the boarding directory, and keeping the query
+    # set tight (3 phrases) is what makes national rollout affordable — each
+    # phrase x area is one billable Places call (~$0.04). The adjacent-service
+    # categories below are parked in ADJACENT_QUERY_SPECS and can be re-enabled
+    # once national boarding coverage is in place.
     query_specs=[
         ("horse boarding", "horse-boarding"),
         ("horse stables", "horse-boarding"),
         ("equestrian center", "horse-boarding"),
-        ("horse trainer", "trainer-instructor"),
-        ("riding lessons", "trainer-instructor"),
-        ("horse farrier", "farrier"),
-        ("equine veterinarian", "equine-veterinarian"),
-        ("tack shop", "tack-shop"),
-        ("horse feed store", "feed-forage"),
-        # Transportation & logistics
-        ("horse trailer dealer", "trailer-sales-rental-repair"),
-        ("horse hauling transport", "horse-hauling"),
-        # Health & veterinary specialists
-        ("equine dentist", "equine-dentistry"),
-        ("equine chiropractor", "chiropractic-bodywork"),
-        ("equine rehabilitation", "therapy-rehabilitation"),
     ],
 )
+
+
+# Parked: adjacent equine-service categories, disabled to keep the per-run Places
+# bill low during national boarding rollout. Append to PLACES.query_specs to
+# re-enable (each entry adds one billable call per area).
+ADJACENT_QUERY_SPECS: list[tuple[str, str]] = [
+    ("horse trainer", "trainer-instructor"),
+    ("riding lessons", "trainer-instructor"),
+    ("horse farrier", "farrier"),
+    ("equine veterinarian", "equine-veterinarian"),
+    ("tack shop", "tack-shop"),
+    ("horse feed store", "feed-forage"),
+    ("horse trailer dealer", "trailer-sales-rental-repair"),
+    ("horse hauling transport", "horse-hauling"),
+    ("equine dentist", "equine-dentistry"),
+    ("equine chiropractor", "chiropractic-bodywork"),
+    ("equine rehabilitation", "therapy-rehabilitation"),
+]
 
 
 REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, OHORSE, FIXTURES]}
