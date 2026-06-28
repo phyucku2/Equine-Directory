@@ -25,17 +25,17 @@ on:
         options: [FL, TX, CA, KY, GA, NC]
         default: FL
       limit:
-        description: "Max listings to pull"
+        description: "Max listings to pull (10000 = effectively uncapped for one state)"
         type: string
-        default: "200"
+        default: "10000"
       use_llm:
         description: "Use LLM grading (ignored for places; needs an API key secret)"
         type: boolean
         default: false
       seed:
-        description: "Seed taxonomy (categories + US states/counties) into the DB first"
+        description: "Seed taxonomy first (OFF for already-seeded states; turn ON when adding a NEW state)"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: read
