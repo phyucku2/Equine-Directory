@@ -99,7 +99,11 @@ def _active_areas() -> list[str]:
     code = (os.environ.get("CRAWL_STATE") or "FL").strip().upper()
     if code == "FL":
         return _FL_AREAS
-    return STATE_COUNTY_AREAS.get(code, _FL_AREAS)
+    if code in STATE_COUNTY_AREAS:
+        return STATE_COUNTY_AREAS[code]
+    # Fail loud rather than silently crawling Florida on a typo / unseeded state.
+    known = ", ".join(["FL", *sorted(STATE_COUNTY_AREAS)])
+    raise SystemExit(f"CRAWL_STATE={code!r} is not a known state. Known: {known}")
 
 
 # Google Places API source — authoritative local-business data (name, address,

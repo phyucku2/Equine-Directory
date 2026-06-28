@@ -22,7 +22,55 @@ on:
       state:
         description: "State to crawl (places only) — one batch at a time"
         type: choice
-        options: [FL, TX, CA, KY, GA, NC]
+        options:
+          - FL
+          - AL
+          - AR
+          - AZ
+          - CA
+          - CO
+          - CT
+          - DE
+          - GA
+          - IA
+          - ID
+          - IL
+          - IN
+          - KS
+          - KY
+          - LA
+          - MA
+          - MD
+          - ME
+          - MI
+          - MN
+          - MO
+          - MS
+          - MT
+          - NC
+          - ND
+          - NE
+          - NH
+          - NJ
+          - NM
+          - NV
+          - NY
+          - OH
+          - OK
+          - OR
+          - PA
+          - RI
+          - SC
+          - SD
+          - TN
+          - TX
+          - UT
+          - VA
+          - VT
+          - WA
+          - WI
+          - WV
+          - WY
         default: FL
       limit:
         description: "Max listings to pull (10000 = effectively uncapped for one state)"
