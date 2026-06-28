@@ -51,5 +51,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           REVALIDATE_URL: ${{ secrets.REVALIDATE_URL }}
           REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          MODERATION_CSV: moderation_queue.csv
         run: |
           python moderate.py --action "${{ inputs.action }}" --query "${{ inputs.query }}"
+
+      # On `list`, publish the queue as a downloadable CSV artifact for review.
+      - name: Upload queue CSV
+        if: ${{ inputs.action == 'list' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: moderation-queue
+          path: crawler/moderation_queue.csv
+          if-no-files-found: warn

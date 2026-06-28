@@ -27,23 +27,38 @@ _PENDING_WHERE = (
 )
 
 
+_CSV_PATH = os.environ.get("MODERATION_CSV", "moderation_queue.csv")
+
+
 def _list(conn) -> None:
     with conn.cursor() as cur:
         cur.execute(
             f"""
-            SELECT b.name, b.slug, c.name, bc.grade, b."isPublished"
+            SELECT b.name, b.slug, c.name, bc.grade, b."isPublished",
+                   b.address, b.website, b.attributes->>'googleMapsUri'
             FROM "BusinessCategory" bc
             JOIN "Business" b ON b.id = bc."businessId"
             JOIN "Category" c ON c.id = bc."categoryId"
             WHERE {_PENDING_WHERE}
-            ORDER BY bc.grade DESC, b.name ASC
+            ORDER BY b.address ASC, b.name ASC
             """
         )
         rows = cur.fetchall()
+
     print(f"Moderation queue: {len(rows)} item(s) awaiting review\n")
-    for name, slug, cat, grade, pub in rows:
+    for name, slug, cat, grade, pub, *_ in rows:
         flag = "published" if pub else "hidden"
         print(f"  [{grade:<16}] {name}  ->  {cat}   ({slug}, {flag})")
+
+    # Write a downloadable CSV (uploaded as a workflow artifact for review).
+    import csv as _csv
+
+    with open(_CSV_PATH, "w", newline="") as fh:
+        w = _csv.writer(fh)
+        w.writerow(["name", "category", "grade", "published", "address", "website", "google_maps", "slug"])
+        for name, slug, cat, grade, pub, address, website, maps in rows:
+            w.writerow([name, cat, grade, "yes" if pub else "no", address or "", website or "", maps or "", slug])
+    print(f"\nWrote {len(rows)} rows to {_CSV_PATH}")
 
 
 def _recompute_published(cur, business_id: str) -> None:
