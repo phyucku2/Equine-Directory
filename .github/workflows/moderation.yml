@@ -13,9 +13,9 @@ on:
   workflow_dispatch:
     inputs:
       action:
-        description: "list = show queue · approve/reject = act on matches"
+        description: "list = show+export queue · approve/reject = by name · apply = batch from decisions CSV"
         type: choice
-        options: [list, approve, reject]
+        options: [list, approve, reject, apply]
         default: list
       query:
         description: "Business-name substring (required for approve/reject)"
