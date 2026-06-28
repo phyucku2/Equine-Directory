@@ -23,7 +23,7 @@ from equine_crawler.db import connect, gen_id
 from equine_crawler.grading import grade_listing, llm_available
 from equine_crawler.pipeline.dedup import find_existing
 from equine_crawler.pipeline.extract import extract
-from equine_crawler.pipeline.geocode import resolve_location
+from equine_crawler.pipeline.geocode import resolve_or_create
 from equine_crawler.pipeline.normalize import normalize, slugify
 from equine_crawler.pipeline.upsert import load_category_ids, upsert_listing
 from equine_crawler.registry import get_source
@@ -110,10 +110,10 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
         try:
             for raw in raws:
                 n = normalize(raw)
-                loc = resolve_location(conn, n.city)
+                loc = resolve_or_create(conn, n.city, n.county, n.latitude, n.longitude, n.state)
                 if not loc:
                     skipped += 1
-                    print(f"  skip (no location): {n.name} [{n.city}]")
+                    print(f"  skip (no location): {n.name} [{n.city}, {n.state}]")
                     continue
                 location_id, clat, clng = loc
                 # Prefer the source's exact coordinates (Google Places) over the
@@ -143,7 +143,8 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                 slug = slugify(n.name, n.city or "")
                 attributes = {"googleMapsUri": n.google_maps_uri} if n.google_maps_uri else {}
                 normalized = NormalizedListing(
-                    name=n.name, slug=slug, address=n.address or n.city or "FL",
+                    name=n.name, slug=slug,
+                    address=n.address or ", ".join(p for p in (n.city, n.state) if p) or "US",
                     city=n.city, phone=n.phone, website=n.website, description=n.description,
                     latitude=lat, longitude=lng, location_id=location_id,
                     graded_categories=graded, source_url=n.source_url, external_id=n.external_id,

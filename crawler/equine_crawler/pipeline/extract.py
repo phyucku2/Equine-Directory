@@ -67,6 +67,25 @@ def _places_city(components: list[dict] | None) -> str | None:
     return None
 
 
+def _places_county(components: list[dict] | None) -> str | None:
+    """Pull the county name (administrative_area_level_2) from addressComponents.
+    Lets the geocoder create the city under the right county for statewide runs."""
+    for c in components or []:
+        if "administrative_area_level_2" in c.get("types", []):
+            return c.get("longText") or c.get("shortText")
+    return None
+
+
+def _places_state(components: list[dict] | None) -> str | None:
+    """Pull the 2-letter state code (administrative_area_level_1) from
+    addressComponents. Disambiguates same-named counties across states (e.g.
+    Jefferson County) when resolving/creating locations nationally."""
+    for c in components or []:
+        if "administrative_area_level_1" in c.get("types", []):
+            return c.get("shortText") or c.get("longText")
+    return None
+
+
 def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
     """Google Places Text Search (New). Authoritative local-business data."""
     api_key = os.environ.get("GOOGLE_MAPS_API_KEY") or os.environ.get("GOOGLE_PLACES_API_KEY")
@@ -117,6 +136,8 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
                     name=name,
                     address=p.get("formattedAddress"),
                     city=_places_city(p.get("addressComponents")),
+                    county=_places_county(p.get("addressComponents")),
+                    state=_places_state(p.get("addressComponents")),
                     phone=p.get("nationalPhoneNumber"),
                     website=p.get("websiteUri"),
                     description=(p.get("editorialSummary") or {}).get("text"),

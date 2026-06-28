@@ -8,8 +8,11 @@ respect each site's robots.txt / ToS (constitution 2.5).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
+
+from .us_counties import STATE_COUNTY_AREAS
 
 
 @dataclass(frozen=True)
@@ -66,9 +69,42 @@ FIXTURES = Source(
 )
 
 
+# Florida counties (the original beta state). Other states' county lists live in
+# us_counties.STATE_COUNTY_AREAS (auto-generated from US Census FIPS).
+_FL_AREAS: list[str] = [
+    "Alachua County FL", "Baker County FL", "Bay County FL", "Bradford County FL",
+    "Brevard County FL", "Broward County FL", "Calhoun County FL", "Charlotte County FL",
+    "Citrus County FL", "Clay County FL", "Collier County FL", "Columbia County FL",
+    "DeSoto County FL", "Dixie County FL", "Duval County FL", "Escambia County FL",
+    "Flagler County FL", "Franklin County FL", "Gadsden County FL", "Gilchrist County FL",
+    "Glades County FL", "Gulf County FL", "Hamilton County FL", "Hardee County FL",
+    "Hendry County FL", "Hernando County FL", "Highlands County FL", "Hillsborough County FL",
+    "Holmes County FL", "Indian River County FL", "Jackson County FL", "Jefferson County FL",
+    "Lafayette County FL", "Lake County FL", "Lee County FL", "Leon County FL",
+    "Levy County FL", "Liberty County FL", "Madison County FL", "Manatee County FL",
+    "Marion County FL", "Martin County FL", "Miami-Dade County FL", "Monroe County FL",
+    "Nassau County FL", "Okaloosa County FL", "Okeechobee County FL", "Orange County FL",
+    "Osceola County FL", "Palm Beach County FL", "Pasco County FL", "Pinellas County FL",
+    "Polk County FL", "Putnam County FL", "St. Johns County FL", "St. Lucie County FL",
+    "Santa Rosa County FL", "Sarasota County FL", "Seminole County FL", "Sumter County FL",
+    "Suwannee County FL", "Taylor County FL", "Union County FL", "Volusia County FL",
+    "Wakulla County FL", "Walton County FL", "Washington County FL",
+]
+
+
+def _active_areas() -> list[str]:
+    """Pick the crawl's county areas from the CRAWL_STATE env var (2-letter code).
+    Defaults to Florida. Lets the GitHub Actions form choose one state per run so
+    national rollout happens one affordable batch at a time."""
+    code = (os.environ.get("CRAWL_STATE") or "FL").strip().upper()
+    if code == "FL":
+        return _FL_AREAS
+    return STATE_COUNTY_AREAS.get(code, _FL_AREAS)
+
+
 # Google Places API source — authoritative local-business data (name, address,
-# phone, website, geo). Text-search queries target the Davie/Broward belt; the
-# grading step confirms which results are truly boarding/training stables.
+# phone, website, geo). Text-search queries target the active state's counties;
+# the grading step confirms which results are truly boarding/training stables.
 PLACES = Source(
     key="places",
     name="Google Places",
@@ -76,30 +112,43 @@ PLACES = Source(
     css_schema={},
     candidate_categories=["horse-boarding"],
     kind="places",
-    areas=[
-        "Davie FL",
-        "Southwest Ranches FL",
-        "Cooper City FL",
-        "Parkland FL",
-        "Coconut Creek FL",
-        "Plantation FL",
-        "Coral Springs FL",
-        "Broward County FL",
-    ],
+    # One text-search area per county in the active state (selected at runtime by
+    # the CRAWL_STATE env var; defaults to FL). The geocoder creates each city
+    # under its county on the fly (see pipeline/geocode.py), so cities don't need
+    # pre-seeding — only counties, which are seeded with coords.
+    areas=_active_areas(),
     # (search phrase, category slug) — the slug matches the seeded taxonomy and
     # is treated as confirmed evidence (Google returned it for that search).
+    #
+    # BOARDING-ONLY for now: V1 is the boarding directory, and keeping the query
+    # set tight (3 phrases) is what makes national rollout affordable — each
+    # phrase x area is one billable Places call (~$0.04). The adjacent-service
+    # categories below are parked in ADJACENT_QUERY_SPECS and can be re-enabled
+    # once national boarding coverage is in place.
     query_specs=[
         ("horse boarding", "horse-boarding"),
         ("horse stables", "horse-boarding"),
         ("equestrian center", "horse-boarding"),
-        ("horse trainer", "trainer-instructor"),
-        ("riding lessons", "trainer-instructor"),
-        ("horse farrier", "farrier"),
-        ("equine veterinarian", "equine-veterinarian"),
-        ("tack shop", "tack-shop"),
-        ("horse feed store", "feed-forage"),
     ],
 )
+
+
+# Parked: adjacent equine-service categories, disabled to keep the per-run Places
+# bill low during national boarding rollout. Append to PLACES.query_specs to
+# re-enable (each entry adds one billable call per area).
+ADJACENT_QUERY_SPECS: list[tuple[str, str]] = [
+    ("horse trainer", "trainer-instructor"),
+    ("riding lessons", "trainer-instructor"),
+    ("horse farrier", "farrier"),
+    ("equine veterinarian", "equine-veterinarian"),
+    ("tack shop", "tack-shop"),
+    ("horse feed store", "feed-forage"),
+    ("horse trailer dealer", "trailer-sales-rental-repair"),
+    ("horse hauling transport", "horse-hauling"),
+    ("equine dentist", "equine-dentistry"),
+    ("equine chiropractor", "chiropractic-bodywork"),
+    ("equine rehabilitation", "therapy-rehabilitation"),
+]
 
 
 REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, OHORSE, FIXTURES]}
