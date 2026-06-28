@@ -8,7 +8,7 @@ name: Crawl listings
 #   - GOOGLE_MAPS_API_KEY   (for places)      Google Places API key
 #   - GEMINI_API_KEY / ANTHROPIC_API_KEY  (optional)  only for LLM grading
 #
-# The taxonomy (categories + FL locations incl. Broward cities) is seeded in the
+# The taxonomy (categories + US locations: states & counties) is seeded in the
 # target DB by a Vercel deploy (vercel-build runs migrate; seed is run once).
 
 on:
@@ -33,7 +33,7 @@ on:
         type: boolean
         default: false
       seed:
-        description: "Seed taxonomy (categories + FL locations) into the DB first"
+        description: "Seed taxonomy (categories + US states/counties) into the DB first"
         type: boolean
         default: true
 
@@ -82,7 +82,7 @@ jobs:
           npx prisma generate
           npx prisma migrate deploy
 
-      - name: Seed taxonomy (categories + FL locations)
+      - name: Seed taxonomy (categories + US states/counties)
         if: ${{ inputs.seed }}
         working-directory: web
         env:
