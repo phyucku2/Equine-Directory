@@ -35,6 +35,7 @@ class RawListing(BaseModel):
     address: str | None = None
     city: str | None = None
     county: str | None = None
+    state: str | None = None  # 2-letter code (e.g. "FL"); scopes county lookup
     phone: str | None = None
     website: str | None = None
     description: str | None = None

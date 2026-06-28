@@ -1,6 +1,7 @@
 import { PrismaClient, LocationType } from "@prisma/client";
 import { CATEGORIES } from "./seed/categories";
 import { FLORIDA, COUNTIES, CITIES } from "./seed/locations";
+import { US_STATES, US_COUNTIES } from "./seed/us-counties";
 import { seedSampleBusinesses } from "./seed/sample-businesses";
 
 const prisma = new PrismaClient();
@@ -96,8 +97,39 @@ async function seedLocations() {
     cityCount++;
   }
 
+  // National expansion: additional states + their counties (cities are created
+  // on the fly by the crawler's geocoder). County names collide across states
+  // (e.g. Jefferson County), so each county is anchored under its state parent.
+  let extraStates = 0;
+  let extraCounties = 0;
+  for (const st of US_STATES) {
+    const state = await upsertLocation({
+      type: LocationType.STATE,
+      name: st.name,
+      slug: st.slug,
+      code: st.code,
+      parentId: usa.id,
+      lat: st.lat,
+      lng: st.lng,
+    });
+    extraStates++;
+    for (const c of US_COUNTIES[st.code] ?? []) {
+      await upsertLocation({
+        type: LocationType.COUNTY,
+        name: c.name,
+        slug: c.slug,
+        code: c.fips,
+        parentId: state.id,
+        lat: c.lat,
+        lng: c.lng,
+      });
+      extraCounties++;
+    }
+  }
+
   console.log(
-    `  locations: 1 country, 1 state, ${COUNTIES.length} counties, ${cityCount} cities`,
+    `  locations: 1 country, ${1 + extraStates} states, ` +
+      `${COUNTIES.length + extraCounties} counties, ${cityCount} cities`,
   );
 }
 

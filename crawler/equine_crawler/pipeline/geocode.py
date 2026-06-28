@@ -51,10 +51,27 @@ def _resolve_global(cur: psycopg.Cursor, city: str) -> tuple[str, float, float] 
     return None
 
 
-def _find_county_id(cur: psycopg.Cursor, county: str | None) -> str | None:
+def _find_county_id(cur: psycopg.Cursor, county: str | None, state: str | None = None) -> str | None:
     if not county:
         return None
     base = re.sub(r"\s+county$", "", county.strip(), flags=re.I)
+    # County names collide across states (Jefferson County exists in ~25 states),
+    # so when we know the state, anchor the match to that state's children.
+    if state:
+        cur.execute(
+            """
+            SELECT c.id FROM "Location" c
+            JOIN "Location" s ON c."parentId" = s.id
+            WHERE c.type = 'COUNTY' AND s.type = 'STATE' AND upper(s.code) = upper(%s)
+              AND (lower(c.name) = lower(%s) OR lower(c.name) = lower(%s))
+            LIMIT 1
+            """,
+            (state, county, base + " County"),
+        )
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        return None
     cur.execute(
         """
         SELECT id FROM "Location"
@@ -73,15 +90,17 @@ def resolve_or_create(
     county: str | None,
     lat: float | None,
     lng: float | None,
+    state: str | None = None,
 ) -> tuple[str, float, float] | None:
     """Return (location_id, lat, lng). Creates the city under its county if it
-    isn't seeded yet (statewide/national). Falls back to a global seeded-city
-    match when the county is unknown."""
+    isn't seeded yet (statewide/national). The state code scopes the county
+    match so same-named counties in other states don't cross-link. Falls back to
+    a global seeded-city match when the county/state is unknown."""
     if not city:
         return None
     city = city.strip()
     with conn.cursor() as cur:
-        county_id = _find_county_id(cur, county)
+        county_id = _find_county_id(cur, county, state)
         if county_id:
             # Exact city within this county (avoids cross-county fuzzy errors).
             cur.execute(

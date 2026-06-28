@@ -8,8 +8,11 @@ respect each site's robots.txt / ToS (constitution 2.5).
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from typing import Any
+
+from .us_counties import STATE_COUNTY_AREAS
 
 
 @dataclass(frozen=True)
@@ -66,9 +69,42 @@ FIXTURES = Source(
 )
 
 
+# Florida counties (the original beta state). Other states' county lists live in
+# us_counties.STATE_COUNTY_AREAS (auto-generated from US Census FIPS).
+_FL_AREAS: list[str] = [
+    "Alachua County FL", "Baker County FL", "Bay County FL", "Bradford County FL",
+    "Brevard County FL", "Broward County FL", "Calhoun County FL", "Charlotte County FL",
+    "Citrus County FL", "Clay County FL", "Collier County FL", "Columbia County FL",
+    "DeSoto County FL", "Dixie County FL", "Duval County FL", "Escambia County FL",
+    "Flagler County FL", "Franklin County FL", "Gadsden County FL", "Gilchrist County FL",
+    "Glades County FL", "Gulf County FL", "Hamilton County FL", "Hardee County FL",
+    "Hendry County FL", "Hernando County FL", "Highlands County FL", "Hillsborough County FL",
+    "Holmes County FL", "Indian River County FL", "Jackson County FL", "Jefferson County FL",
+    "Lafayette County FL", "Lake County FL", "Lee County FL", "Leon County FL",
+    "Levy County FL", "Liberty County FL", "Madison County FL", "Manatee County FL",
+    "Marion County FL", "Martin County FL", "Miami-Dade County FL", "Monroe County FL",
+    "Nassau County FL", "Okaloosa County FL", "Okeechobee County FL", "Orange County FL",
+    "Osceola County FL", "Palm Beach County FL", "Pasco County FL", "Pinellas County FL",
+    "Polk County FL", "Putnam County FL", "St. Johns County FL", "St. Lucie County FL",
+    "Santa Rosa County FL", "Sarasota County FL", "Seminole County FL", "Sumter County FL",
+    "Suwannee County FL", "Taylor County FL", "Union County FL", "Volusia County FL",
+    "Wakulla County FL", "Walton County FL", "Washington County FL",
+]
+
+
+def _active_areas() -> list[str]:
+    """Pick the crawl's county areas from the CRAWL_STATE env var (2-letter code).
+    Defaults to Florida. Lets the GitHub Actions form choose one state per run so
+    national rollout happens one affordable batch at a time."""
+    code = (os.environ.get("CRAWL_STATE") or "FL").strip().upper()
+    if code == "FL":
+        return _FL_AREAS
+    return STATE_COUNTY_AREAS.get(code, _FL_AREAS)
+
+
 # Google Places API source — authoritative local-business data (name, address,
-# phone, website, geo). Text-search queries target the Davie/Broward belt; the
-# grading step confirms which results are truly boarding/training stables.
+# phone, website, geo). Text-search queries target the active state's counties;
+# the grading step confirms which results are truly boarding/training stables.
 PLACES = Source(
     key="places",
     name="Google Places",
@@ -76,28 +112,11 @@ PLACES = Source(
     css_schema={},
     candidate_categories=["horse-boarding"],
     kind="places",
-    # Statewide: one text-search area per Florida county. The geocoder creates
-    # each city under its county on the fly (see pipeline/geocode.py), so we no
-    # longer need to pre-seed cities. Counties are seeded with coords already.
-    areas=[
-        "Alachua County FL", "Baker County FL", "Bay County FL", "Bradford County FL",
-        "Brevard County FL", "Broward County FL", "Calhoun County FL", "Charlotte County FL",
-        "Citrus County FL", "Clay County FL", "Collier County FL", "Columbia County FL",
-        "DeSoto County FL", "Dixie County FL", "Duval County FL", "Escambia County FL",
-        "Flagler County FL", "Franklin County FL", "Gadsden County FL", "Gilchrist County FL",
-        "Glades County FL", "Gulf County FL", "Hamilton County FL", "Hardee County FL",
-        "Hendry County FL", "Hernando County FL", "Highlands County FL", "Hillsborough County FL",
-        "Holmes County FL", "Indian River County FL", "Jackson County FL", "Jefferson County FL",
-        "Lafayette County FL", "Lake County FL", "Lee County FL", "Leon County FL",
-        "Levy County FL", "Liberty County FL", "Madison County FL", "Manatee County FL",
-        "Marion County FL", "Martin County FL", "Miami-Dade County FL", "Monroe County FL",
-        "Nassau County FL", "Okaloosa County FL", "Okeechobee County FL", "Orange County FL",
-        "Osceola County FL", "Palm Beach County FL", "Pasco County FL", "Pinellas County FL",
-        "Polk County FL", "Putnam County FL", "St. Johns County FL", "St. Lucie County FL",
-        "Santa Rosa County FL", "Sarasota County FL", "Seminole County FL", "Sumter County FL",
-        "Suwannee County FL", "Taylor County FL", "Union County FL", "Volusia County FL",
-        "Wakulla County FL", "Walton County FL", "Washington County FL",
-    ],
+    # One text-search area per county in the active state (selected at runtime by
+    # the CRAWL_STATE env var; defaults to FL). The geocoder creates each city
+    # under its county on the fly (see pipeline/geocode.py), so cities don't need
+    # pre-seeding — only counties, which are seeded with coords.
+    areas=_active_areas(),
     # (search phrase, category slug) — the slug matches the seeded taxonomy and
     # is treated as confirmed evidence (Google returned it for that search).
     #

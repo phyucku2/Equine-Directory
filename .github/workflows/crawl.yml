@@ -19,6 +19,11 @@ on:
         type: choice
         options: [places, ohorse, fixtures]
         default: places
+      state:
+        description: "State to crawl (places only) — one batch at a time"
+        type: choice
+        options: [FL, TX, CA, KY, GA, NC]
+        default: FL
       limit:
         description: "Max listings to pull"
         type: string
@@ -90,6 +95,7 @@ jobs:
           GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          CRAWL_STATE: ${{ inputs.state }}
         run: |
           ARGS="--source ${{ inputs.source }} --limit ${{ inputs.limit }}"
           if [ "${{ inputs.use_llm }}" != "true" ]; then

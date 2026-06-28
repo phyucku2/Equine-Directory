@@ -59,6 +59,7 @@ def normalize(raw: RawListing) -> RawListing:
         address=clean_text(raw.address),
         city=infer_city(raw),
         county=clean_text(raw.county),
+        state=(raw.state or "").strip().upper() or None,
         phone=clean_phone(raw.phone),
         website=clean_url(raw.website),
         description=clean_text(raw.description),
