@@ -99,7 +99,7 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90  # deep paginated runs over a state's dense counties take longer
     defaults:
       run:
         working-directory: crawler
