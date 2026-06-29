@@ -50,7 +50,9 @@ _MAX_PHOTOS = 3
 # nextPageToken to record the true count. Default 1 page (breadth runs); the
 # surgical "deep" mode sets this to 3 (~60/search).
 _MAX_PAGES = max(1, int(os.environ.get("CRAWL_MAX_PAGES", "1")))
-_PAGE_DELAY_S = 2.0  # nextPageToken needs a moment to become valid
+# Places API (New) accepts nextPageToken almost immediately; a small delay is
+# plenty (the old 2s was a legacy-API requirement that made deep runs time out).
+_PAGE_DELAY_S = float(os.environ.get("CRAWL_PAGE_DELAY", "0.4"))
 
 
 def _places_photos(photos: list[dict] | None) -> list[dict]:
