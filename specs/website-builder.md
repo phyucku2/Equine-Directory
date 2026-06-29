@@ -47,6 +47,35 @@ events, reviews), so we pre-fill everything and the owner just confirms + brands
 5. Domain/DNS (Vercel API) + nameserver-delegation flow.
 6. Billing ($99–299 build + $49.99/yr) behind the flag.
 
+## Backlinks & Certified badge (SEO flywheel)
+
+Every barn that links back to us raises our domain authority → better directory
+rankings → more traffic. Two mechanisms:
+
+1. **Built-site backlinks (automatic).** Every generated client site includes
+   dofollow links back to us with local-keyword anchors — footer "Find us on The
+   Stable Directory" + a link to their own listing (e.g. anchor "<City> horse
+   boarding"). Directory ⇄ site cross-linking both ways.
+
+2. **Embeddable Certified badge (backlink magnet for ALL claimed barns, not just
+   site customers).** A copy-paste snippet:
+   `<a href="https://thestabledirectory.com/business/<slug>?utm=badge"><img src="https://thestabledirectory.com/api/badge/<slug>.svg" alt="Certified — The Stable Directory"></a>`
+   - **Dynamic SVG endpoint** `/api/badge/[slug].svg` renders the seal server-side
+     (cacheable). Two variants:
+     - **Certified/Verified seal** — earned by claim + Tier 1 (the trust mark).
+     - **Live rating badge** — shows the barn's *real* aggregate stars + review
+       count, auto-updating. If a barn has no/low reviews, show "Certified"
+       without fabricated stars (never a blanket 5-star).
+   - The `<a>` wrapper is the backlink to their listing/our domain. Baked into
+     built sites; offered free in the owner dashboard to every claimed barn (and
+     pitched as "add this badge to your existing site").
+   - Honesty: stars reflect actual data; the seal reflects verification status —
+     no fixed 5-star handed out.
+
+Build notes: add `/api/badge/[slug].svg` (server-rendered SVG, no PII, cached);
+a "Get your badge" panel in the owner dashboard (copy snippet); footer/backlink
+component in every template. Track referrals via the `utm=badge` param.
+
 ## Open later
 - Exact template count/styles; per-page custom-copy depth; whether to run sites in the main app vs a dedicated app; CDN/image handling for tenant photos.
 </content>
