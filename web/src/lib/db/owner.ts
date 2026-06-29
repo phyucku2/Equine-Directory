@@ -70,7 +70,12 @@ export async function listOwnedBusinesses(userId: string): Promise<OwnerBusiness
       responseRate: true,
       verificationBadge: true,
       isFeatured: true,
-      images: { select: { url: true }, orderBy: [{ source: "asc" }, { rank: "asc" }], take: 1 },
+      images: {
+        where: { isLogo: false },
+        select: { url: true },
+        orderBy: [{ source: "asc" }, { rank: "asc" }],
+        take: 1,
+      },
       _count: {
         select: {
           reviews: { where: { isApproved: true, ownerResponse: null } },
@@ -666,4 +671,321 @@ export async function setInquiryStatus(
     data: { status },
     select: { id: true, status: true },
   });
+}
+
+// ─────────────────────────── Monetization (tiers) ───────────────────────────
+// See specs/monetization-tiers.md. Every owner gate reads getEntitlements(business)
+// (src/lib/entitlements.ts), so the loaders below always pull the subscription +
+// active spotlights the resolver needs. Trainers/Events are TEAM/EVENTS-tier
+// editors; the logo + stalls badge live on the VERIFIED tier.
+
+// Minimal include for the entitlements resolver — subscription + spotlights only.
+export const entitlementsInclude = {
+  subscription: true,
+  spotlights: true,
+} satisfies Prisma.BusinessInclude;
+
+export type BusinessWithEntitlements = Prisma.BusinessGetPayload<{
+  include: typeof entitlementsInclude;
+}>;
+
+// Load the relations getEntitlements(business) needs (subscription + spotlights)
+// for a business already authorized upstream. Returns null if the row is gone.
+export function loadBusinessForEntitlements(businessId: string) {
+  return prisma.business.findUnique({
+    where: { id: businessId },
+    include: entitlementsInclude,
+  });
+}
+
+// --- Stalls-Available badge: a boolean stashed in Business.attributes. Rendered
+// publicly only when the business is entitled (stallsBadge) AND this flag is on.
+// Written through the same server-merge as offering so crawled attributes survive.
+export async function setStallsBadge(businessId: string, on: boolean) {
+  return prisma.$transaction(async (tx) => {
+    const current = await tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { attributes: true },
+    });
+    const merged = stripProtectedAttributeKeys({
+      ...asRecord(current.attributes),
+      stallsBadge: on,
+    });
+    if (!on) delete merged.stallsBadge;
+    return tx.business.update({
+      where: { id: businessId },
+      data: { attributes: merged as Prisma.InputJsonValue },
+      select: { id: true, attributes: true },
+    });
+  });
+}
+
+/** Read the stalls-badge flag from a business's attributes JSON. */
+export function readStallsBadge(attrs: Prisma.JsonValue | null | undefined): boolean {
+  return asRecord(attrs).stallsBadge === true;
+}
+
+// --- Logo (BusinessImage source:OWNER, isLogo:true). Max one logo per business;
+// uploading a new one replaces the old. The logo does NOT count against the
+// owner-image quota (maxImages counts source:OWNER, isLogo:false). ---
+
+export function getLogo(businessId: string) {
+  return prisma.businessImage.findFirst({
+    where: { businessId, source: "OWNER", isLogo: true },
+    select: { id: true, url: true },
+  });
+}
+
+// Replace the logo: delete any existing logo row, insert the new one. Returns the
+// previous logo url (for best-effort blob cleanup by the caller).
+export async function setLogo(businessId: string, url: string) {
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.businessImage.findMany({
+      where: { businessId, source: "OWNER", isLogo: true },
+      select: { id: true, url: true },
+    });
+    if (existing.length) {
+      await tx.businessImage.deleteMany({
+        where: { id: { in: existing.map((e) => e.id) } },
+      });
+    }
+    const image = await tx.businessImage.create({
+      data: { businessId, url, source: "OWNER", isLogo: true, rank: -1 },
+      select: { id: true, url: true },
+    });
+    return { image, previousUrls: existing.map((e) => e.url) };
+  });
+}
+
+export async function deleteLogo(businessId: string) {
+  const logo = await prisma.businessImage.findFirst({
+    where: { businessId, source: "OWNER", isLogo: true },
+    select: { id: true, url: true },
+  });
+  if (!logo) return null;
+  await prisma.businessImage.delete({ where: { id: logo.id } });
+  return logo;
+}
+
+// Count NON-logo OWNER images for the maxImages quota gate (logo is excluded).
+export function countOwnerPhotos(businessId: string) {
+  return prisma.businessImage.count({
+    where: { businessId, source: "OWNER", isLogo: false },
+  });
+}
+
+// --- Trainers (TEAM tier). CRUD over Trainer rows. disciplines validated against
+// the shared facet vocab; slug derived from the name (unique per business). ---
+
+function slugify(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+}
+
+// Ensure a unique [businessId, slug] by appending -2, -3, … on collision.
+// `excludeId` lets an update keep its own slug.
+async function uniqueChildSlug(
+  model: "trainer" | "event",
+  businessId: string,
+  base: string,
+  excludeId?: string,
+): Promise<string> {
+  const root = base || model;
+  let candidate = root;
+  for (let i = 2; i < 1000; i++) {
+    const where = { businessId, slug: candidate, ...(excludeId ? { NOT: { id: excludeId } } : {}) };
+    const existing =
+      model === "trainer"
+        ? await prisma.trainer.findFirst({ where, select: { id: true } })
+        : await prisma.event.findFirst({ where, select: { id: true } });
+    if (!existing) return candidate;
+    candidate = `${root}-${i}`;
+  }
+  return `${root}-${Date.now()}`;
+}
+
+export interface TrainerInput {
+  name: string;
+  bio?: string | null;
+  photoUrl?: string | null;
+  disciplines: string[];
+  certifications: string[];
+  email?: string | null;
+  phone?: string | null;
+}
+
+const MAX_CERTS = 20;
+const MAX_CERT_LEN = 120;
+
+function cleanCerts(values: unknown): string[] {
+  if (!Array.isArray(values)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    if (typeof v !== "string") continue;
+    const t = v.trim().slice(0, MAX_CERT_LEN);
+    if (!t || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length >= MAX_CERTS) break;
+  }
+  return out;
+}
+
+export function listTrainers(businessId: string) {
+  return prisma.trainer.findMany({
+    where: { businessId },
+    orderBy: [{ rank: "asc" }, { createdAt: "asc" }],
+  });
+}
+
+export function countTrainers(businessId: string) {
+  return prisma.trainer.count({ where: { businessId } });
+}
+
+export async function createTrainer(businessId: string, input: TrainerInput) {
+  const slug = await uniqueChildSlug("trainer", businessId, slugify(input.name));
+  return prisma.trainer.create({
+    data: {
+      businessId,
+      name: input.name.slice(0, 255),
+      slug,
+      bio: input.bio ?? null,
+      photoUrl: input.photoUrl ?? null,
+      disciplines: sanitizeFacet("disciplines", input.disciplines),
+      certifications: cleanCerts(input.certifications),
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+    },
+  });
+}
+
+export async function updateTrainer(
+  businessId: string,
+  trainerId: string,
+  input: TrainerInput,
+) {
+  const existing = await prisma.trainer.findFirst({
+    where: { id: trainerId, businessId },
+    select: { id: true, slug: true, name: true },
+  });
+  if (!existing) return null;
+  // Re-derive the slug only when the name changed (keeps stable URLs otherwise).
+  const slug =
+    input.name.trim() && slugify(input.name) !== existing.slug
+      ? await uniqueChildSlug("trainer", businessId, slugify(input.name), trainerId)
+      : existing.slug;
+  return prisma.trainer.update({
+    where: { id: existing.id },
+    data: {
+      name: input.name.slice(0, 255),
+      slug,
+      bio: input.bio ?? null,
+      photoUrl: input.photoUrl ?? null,
+      disciplines: sanitizeFacet("disciplines", input.disciplines),
+      certifications: cleanCerts(input.certifications),
+      email: input.email ?? null,
+      phone: input.phone ?? null,
+    },
+  });
+}
+
+export async function deleteTrainer(businessId: string, trainerId: string) {
+  const existing = await prisma.trainer.findFirst({
+    where: { id: trainerId, businessId },
+    select: { id: true, photoUrl: true },
+  });
+  if (!existing) return null;
+  await prisma.trainer.delete({ where: { id: existing.id } });
+  return existing;
+}
+
+// --- Events (EVENTS tier). CRUD over Event rows. type validated against the
+// program-type vocab; locationId defaults to the business's own city. ---
+
+export interface EventInput {
+  type: string;
+  title: string;
+  description?: string | null;
+  startDate: Date;
+  endDate?: Date | null;
+  price?: number | null;
+  registrationUrl?: string | null;
+  imageUrl?: string | null;
+  isPublished: boolean;
+  locationId?: string | null;
+}
+
+export function listEvents(businessId: string) {
+  return prisma.event.findMany({
+    where: { businessId },
+    orderBy: [{ startDate: "asc" }],
+  });
+}
+
+export async function createEvent(businessId: string, input: EventInput) {
+  const slug = await uniqueChildSlug("event", businessId, slugify(input.title));
+  // Default the event's location to the business's own city for the geo surface.
+  const locationId =
+    input.locationId ??
+    (await prisma.business.findUnique({ where: { id: businessId }, select: { locationId: true } }))
+      ?.locationId ??
+    null;
+  return prisma.event.create({
+    data: {
+      businessId,
+      type: input.type,
+      title: input.title.slice(0, 255),
+      slug,
+      description: input.description ?? null,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+      price: input.price ?? null,
+      registrationUrl: input.registrationUrl ?? null,
+      imageUrl: input.imageUrl ?? null,
+      isPublished: input.isPublished,
+      locationId,
+    },
+  });
+}
+
+export async function updateEvent(businessId: string, eventId: string, input: EventInput) {
+  const existing = await prisma.event.findFirst({
+    where: { id: eventId, businessId },
+    select: { id: true, slug: true },
+  });
+  if (!existing) return null;
+  const slug =
+    input.title.trim() && slugify(input.title) !== existing.slug
+      ? await uniqueChildSlug("event", businessId, slugify(input.title), eventId)
+      : existing.slug;
+  return prisma.event.update({
+    where: { id: existing.id },
+    data: {
+      type: input.type,
+      title: input.title.slice(0, 255),
+      slug,
+      description: input.description ?? null,
+      startDate: input.startDate,
+      endDate: input.endDate ?? null,
+      price: input.price ?? null,
+      registrationUrl: input.registrationUrl ?? null,
+      imageUrl: input.imageUrl ?? null,
+      isPublished: input.isPublished,
+    },
+  });
+}
+
+export async function deleteEvent(businessId: string, eventId: string) {
+  const existing = await prisma.event.findFirst({
+    where: { id: eventId, businessId },
+    select: { id: true, imageUrl: true },
+  });
+  if (!existing) return null;
+  await prisma.event.delete({ where: { id: existing.id } });
+  return existing;
 }

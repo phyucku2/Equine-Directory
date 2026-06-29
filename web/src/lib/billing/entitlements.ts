@@ -62,10 +62,16 @@ const PREMIUM: Entitlements = {
   featured: false,
 };
 
+// The new monetization ladder (see src/lib/entitlements.ts) is resolved by
+// getEntitlements(); here the new SubTier values are aliased onto the legacy
+// PRO/PREMIUM rows so this older resolver stays exhaustive over SubTier.
 const BY_TIER: Record<SubTier, Entitlements> = {
   FREE,
   PRO,
   PREMIUM,
+  VERIFIED: PRO,
+  TEAM: PRO,
+  EVENTS: PREMIUM,
 };
 
 // Shape of the add-on state stashed in the nullable Business.attributes JSON.

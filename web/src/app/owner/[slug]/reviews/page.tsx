@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { loadOwnedBusiness } from "../_shared";
+import { loadOwnedBusinessWithEntitlements } from "../_shared";
 import { ReviewsInbox } from "./ReviewsInbox";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +13,17 @@ export default async function OwnerReviewsPage({
 }) {
   const { slug } = await params;
   const { tab } = await searchParams;
-  const business = await loadOwnedBusiness(slug);
-  if (!business) notFound();
+  const loaded = await loadOwnedBusinessWithEntitlements(slug);
+  if (!loaded) notFound();
+  const { business, entitlements } = loaded;
 
   return (
     <div>
       <h3 className="mb-4 text-sm font-semibold text-pine">Reviews &amp; inquiries</h3>
       <ReviewsInbox
         businessId={business.id}
+        slug={business.slug}
+        canRespond={entitlements.canCollectReviews}
         initialTab={tab === "inbox" ? "inbox" : "reviews"}
         reviews={business.reviews.map((r) => ({
           id: r.id,

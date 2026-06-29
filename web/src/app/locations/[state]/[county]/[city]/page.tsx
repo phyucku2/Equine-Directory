@@ -5,6 +5,8 @@ import { getByLocation, countByLocation } from "@/lib/db/business";
 import { countyUrl, cityUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { FeaturedSpotlights } from "@/components/business/FeaturedSpotlights";
+import { getActiveSpotlightsForLocation } from "@/lib/db/spotlight";
 import { Pagination } from "@/components/Pagination";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
@@ -40,7 +42,11 @@ export default async function CityPage({
   if (!loc) notFound();
 
   const page = Math.max(1, Number(pageParam) || 1);
-  const results = await getByLocation(loc.id, page);
+  const [results, spotlights] = await Promise.all([
+    getByLocation(loc.id, page),
+    // Featured slot only on the first page (it's an above-the-fold placement).
+    page === 1 ? getActiveSpotlightsForLocation(loc.id) : Promise.resolve([]),
+  ]);
   const countyLoc = loc.parent;
   const stateLoc = countyLoc?.parent;
 
@@ -58,6 +64,8 @@ export default async function CityPage({
       <p className="mt-1 text-ink/55">
         {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
+
+      <FeaturedSpotlights spotlights={spotlights} title={`Featured stables in ${loc.name}`} />
 
       {results.items.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">

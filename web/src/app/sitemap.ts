@@ -1,14 +1,15 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { STABLES_BUSINESS_WHERE, STABLES_SLUG } from "@/lib/db/business";
-import { businessUrl, categoryUrl, stateUrl, countyUrl, cityUrl, absoluteUrl } from "@/lib/urls";
+import { businessUrl, categoryUrl, stateUrl, countyUrl, cityUrl, eventUrl, eventsUrl, absoluteUrl } from "@/lib/urls";
 import { isBusinessIndexable } from "@/lib/seo/indexing";
+import { getEventsForSitemap } from "@/lib/db/events";
 
 export const revalidate = 86400;
 
 // Split sitemaps: /sitemap.xml is the index, sub-sitemaps at /sitemap/<id>.xml.
 export async function generateSitemaps() {
-  return [{ id: "businesses" }, { id: "categories" }, { id: "locations" }];
+  return [{ id: "businesses" }, { id: "categories" }, { id: "locations" }, { id: "events" }];
 }
 
 async function businessesSitemap(): Promise<MetadataRoute.Sitemap> {
@@ -98,6 +99,27 @@ async function locationsSitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 }
 
+// Published, currently-entitled events + the calendar index.
+async function eventsSitemap(): Promise<MetadataRoute.Sitemap> {
+  const events = await getEventsForSitemap();
+  const entries: MetadataRoute.Sitemap = [
+    {
+      url: absoluteUrl(eventsUrl()),
+      changeFrequency: "daily" as const,
+      priority: 0.6,
+    },
+  ];
+  for (const e of events) {
+    entries.push({
+      url: absoluteUrl(eventUrl(e.business.slug, e.slug)),
+      lastModified: e.updatedAt,
+      changeFrequency: "weekly" as const,
+      priority: 0.5,
+    });
+  }
+  return entries;
+}
+
 export default async function sitemap({ id }: { id: string }): Promise<MetadataRoute.Sitemap> {
   try {
     switch (id) {
@@ -107,6 +129,8 @@ export default async function sitemap({ id }: { id: string }): Promise<MetadataR
         return await categoriesSitemap();
       case "locations":
         return await locationsSitemap();
+      case "events":
+        return await eventsSitemap();
       default:
         return [];
     }

@@ -16,16 +16,24 @@ const MAX_BYTES = 8 * 1024 * 1024;
 
 export function PhotosManager({
   businessId,
+  slug,
   ownerPhotos,
   otherPhotos,
-  canUpload,
   maxPhotos,
+  canLogo,
+  logoUrl,
+  canStallsBadge,
+  stallsBadgeOn,
 }: {
   businessId: string;
+  slug: string;
   ownerPhotos: Img[];
   otherPhotos: Img[];
-  canUpload: boolean;
   maxPhotos: number;
+  canLogo: boolean;
+  logoUrl: string | null;
+  canStallsBadge: boolean;
+  stallsBadgeOn: boolean;
 }) {
   const router = useRouter();
   const [order, setOrder] = useState<Img[]>(ownerPhotos);
@@ -34,7 +42,71 @@ export function PhotosManager({
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Logo + stalls-badge local state.
+  const [logo, setLogo] = useState<string | null>(logoUrl);
+  const [logoBusy, setLogoBusy] = useState(false);
+  const logoRef = useRef<HTMLInputElement>(null);
+  const [stalls, setStalls] = useState(stallsBadgeOn);
+  const [stallsBusy, setStallsBusy] = useState(false);
+
+  const canUpload = maxPhotos > 0;
   const atLimit = order.length >= maxPhotos;
+
+  async function onLogoFile(files: FileList | null) {
+    const file = files?.[0];
+    if (!file) return;
+    if (!ALLOWED.includes(file.type)) {
+      setError(`Unsupported file type. Use JPEG, PNG, WebP or AVIF.`);
+      return;
+    }
+    setLogoBusy(true);
+    setError(null);
+    try {
+      const blob = await upload(`businesses/${businessId}/logo-${Date.now()}-${file.name}`, file, {
+        access: "public",
+        handleUploadUrl: `/api/owner/businesses/${businessId}/logo`,
+      });
+      const res = await fetch(`/api/owner/businesses/${businessId}/logo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: blob.url }),
+      });
+      if (!res.ok) {
+        setError((await res.json().catch(() => ({}))).error ?? "Could not save the logo.");
+      } else {
+        setLogo(blob.url);
+        router.refresh();
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Upload failed.");
+    } finally {
+      setLogoBusy(false);
+      if (logoRef.current) logoRef.current.value = "";
+    }
+  }
+
+  async function removeLogo() {
+    setLogo(null);
+    await fetch(`/api/owner/businesses/${businessId}/logo`, { method: "DELETE" });
+    router.refresh();
+  }
+
+  async function toggleStalls(on: boolean) {
+    setStalls(on);
+    setStallsBusy(true);
+    const res = await fetch(`/api/owner/businesses/${businessId}/stalls-badge`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on }),
+    });
+    setStallsBusy(false);
+    if (!res.ok) {
+      setStalls(!on); // revert
+      setError((await res.json().catch(() => ({}))).error ?? "Could not update the badge.");
+    } else {
+      router.refresh();
+    }
+  }
 
   async function onFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -111,6 +183,81 @@ export function PhotosManager({
 
   return (
     <div className="space-y-6">
+      {/* Logo */}
+      <div className="rounded-xl border border-leather/15 p-4">
+        <p className="text-sm font-semibold text-pine">Logo</p>
+        {canLogo ? (
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-leather/15 bg-cream-dark">
+              {logo ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logo} alt="" className="h-full w-full object-contain" />
+              ) : (
+                <span className="text-[10px] text-ink/35">No logo</span>
+              )}
+            </div>
+            <div>
+              <input
+                ref={logoRef}
+                type="file"
+                accept={ALLOWED.join(",")}
+                hidden
+                onChange={(e) => onLogoFile(e.target.files)}
+              />
+              <button
+                type="button"
+                onClick={() => logoRef.current?.click()}
+                disabled={logoBusy}
+                className="rounded-lg border border-leather/20 px-3 py-1.5 text-xs font-medium text-pine transition hover:border-brass/50 disabled:opacity-50"
+              >
+                {logoBusy ? "Uploading…" : logo ? "Replace logo" : "Upload logo"}
+              </button>
+              {logo && (
+                <button
+                  type="button"
+                  onClick={removeLogo}
+                  className="ml-2 text-xs text-ink/45 underline"
+                >
+                  Remove
+                </button>
+              )}
+              <p className="mt-1 text-[11px] text-ink/45">Shown on your listing header and card.</p>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-ink/55">
+            A logo is part of the Verified plan.{" "}
+            <a href={`/owner/${slug}/plan`} className="font-medium text-pine underline">
+              Upgrade
+            </a>
+            .
+          </p>
+        )}
+      </div>
+
+      {/* Stalls Available badge */}
+      {canStallsBadge && (
+        <div className="rounded-xl border border-leather/15 p-4">
+          <label className="flex items-center justify-between gap-3">
+            <span>
+              <span className="block text-sm font-semibold text-pine">
+                “Stalls Available” badge
+              </span>
+              <span className="block text-xs text-ink/55">
+                Overlay a badge on your cover photo to signal open boarding spots.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={stalls}
+              disabled={stallsBusy}
+              onChange={(e) => toggleStalls(e.target.checked)}
+              className="h-4 w-4"
+            />
+          </label>
+        </div>
+      )}
+
       <div>
         <div className="flex items-center justify-between">
           <p className="text-sm font-semibold text-pine">Your photos</p>
@@ -177,7 +324,11 @@ export function PhotosManager({
           </>
         ) : (
           <div className="rounded-xl border border-leather/15 bg-cream-dark/40 p-4 text-sm text-ink/60">
-            Photo uploads aren&apos;t included in your current plan.
+            Photo uploads are part of the Verified plan.{" "}
+            <a href={`/owner/${slug}/plan`} className="font-medium text-pine underline">
+              Upgrade
+            </a>{" "}
+            to add up to 5 photos.
           </div>
         )}
         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}

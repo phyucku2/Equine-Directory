@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withOwner } from "@/lib/auth/owner-route";
+import { requireEntitlement } from "@/lib/auth/owner-entitlement";
 import { respondToReview } from "@/lib/db/owner";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,13 @@ export const dynamic = "force-dynamic";
 // (responseRate = respondedReviewCount / totalReviewCount * 100). The review
 // must belong to this business or we 404.
 export const POST = withOwner<{ id: string; rid: string }>(async ({ id, request, params }) => {
+  const gate = await requireEntitlement(
+    id,
+    (e) => e.canCollectReviews,
+    "Responding to reviews requires the Verified plan.",
+  );
+  if (gate.blocked) return gate.response;
+
   let body: { response?: unknown };
   try {
     body = await request.json();

@@ -3,6 +3,8 @@ import type Stripe from "stripe";
 import { stripe, STRIPE_WEBHOOK_SECRET } from "@/lib/billing/stripe";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, SubTier, SubStatus, VerificationBadge } from "@prisma/client";
+import { createSpotlight, recordPurchase } from "@/lib/db/grants";
+import { PRICES } from "@/lib/entitlements";
 
 // The Stripe webhook — the ONLY writer of paid state. It reconciles verified
 // Stripe events into:
@@ -24,6 +26,10 @@ const TIER_BADGE: Record<SubTier, VerificationBadge> = {
   FREE: "VERIFIED",
   PRO: "TRUSTED",
   PREMIUM: "PREMIUM",
+  // Monetization ladder (specs/monetization-tiers.md): a paid tier verifies the barn.
+  VERIFIED: "VERIFIED",
+  TEAM: "TRUSTED",
+  EVENTS: "PREMIUM",
 };
 
 const BADGE_RANK: Record<VerificationBadge, number> = {
@@ -34,15 +40,32 @@ const BADGE_RANK: Record<VerificationBadge, number> = {
 };
 
 // Map a Stripe subscription to our tier. We read it from the price's lookup_key
-// (e.g. "pro" / "premium") falling back to subscription metadata `tier`.
+// (e.g. "verified" / "events"), falling back to subscription metadata `tier`.
+// The monetization ladder (VERIFIED/TEAM/EVENTS) and the legacy accounts tiers
+// (PRO/PREMIUM) are both recognized; anything unknown stays FREE.
 function tierFromSubscription(sub: Stripe.Subscription): SubTier {
-  const item = sub.items?.data?.[0];
-  const lookup = item?.price?.lookup_key?.toUpperCase();
+  const lookups = (sub.items?.data ?? [])
+    .map((i) => i.price?.lookup_key?.toUpperCase())
+    .filter((x): x is string => Boolean(x));
   const metaTier = (sub.metadata?.tier ?? "").toUpperCase();
-  const candidate = lookup || metaTier;
-  if (candidate === "PREMIUM") return "PREMIUM";
-  if (candidate === "PRO") return "PRO";
+  const candidates = [...lookups, metaTier];
+  // Highest tier present wins (events item + verified item ⇒ EVENTS).
+  if (candidates.includes("EVENTS") || candidates.includes("PREMIUM")) return "EVENTS";
+  if (candidates.includes("TEAM") || candidates.includes("PRO")) return "TEAM";
+  if (candidates.includes("VERIFIED")) return "VERIFIED";
   return "FREE";
+}
+
+// Trainer seats = the quantity on the trainer-seat line item, identified by its
+// price lookup_key ("trainer_seat"). 0 when absent. Also accepts the count from
+// subscription metadata as a fallback (admin-set / migrated subs).
+function trainerSeatsFromSubscription(sub: Stripe.Subscription): number {
+  const seatItem = (sub.items?.data ?? []).find(
+    (i) => i.price?.lookup_key?.toLowerCase() === "trainer_seat",
+  );
+  if (seatItem) return seatItem.quantity ?? 0;
+  const metaSeats = Number(sub.metadata?.trainerSeats);
+  return Number.isInteger(metaSeats) && metaSeats > 0 ? metaSeats : 0;
 }
 
 function statusFromStripe(status: Stripe.Subscription.Status): SubStatus {
@@ -89,6 +112,7 @@ async function reconcileSubscription(sub: Stripe.Subscription): Promise<void> {
   if (!business) return;
 
   const tier = tierFromSubscription(sub);
+  const trainerSeats = trainerSeatsFromSubscription(sub);
   const status = statusFromStripe(sub.status);
   const paying = status === "ACTIVE" || status === "PAST_DUE";
   const currentPeriodEnd = sub.items?.data?.[0]?.current_period_end
@@ -107,6 +131,7 @@ async function reconcileSubscription(sub: Stripe.Subscription): Promise<void> {
       create: {
         businessId,
         tier,
+        trainerSeats,
         status,
         stripeCustomerId: customerId,
         stripeSubscriptionId: sub.id,
@@ -114,6 +139,7 @@ async function reconcileSubscription(sub: Stripe.Subscription): Promise<void> {
       },
       update: {
         tier,
+        trainerSeats,
         status,
         stripeCustomerId: customerId,
         stripeSubscriptionId: sub.id,
@@ -175,6 +201,47 @@ async function reconcileFeaturedPurchase(
   ]);
 }
 
+// A Spotlight add-on purchase: record the Purchase ledger row, then create the
+// spotlight window via the shared grants layer (which enforces the per-city cap —
+// windows beyond 3 active are queued — and writes the audit log).
+async function reconcileSpotlightPurchase(
+  businessId: string,
+  paymentId: string,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const locationId = session.metadata?.spotlightLocationId;
+  const weeks = Number(session.metadata?.spotlightWeeks);
+  if (!locationId || !Number.isInteger(weeks) || weeks < 1) return;
+
+  // Idempotency: if we already recorded this payment, do not create a 2nd window.
+  const existing = await prisma.purchase.findUnique({
+    where: { stripePaymentId: paymentId },
+    select: { id: true },
+  });
+  if (existing) return;
+
+  const startsAt = new Date();
+  const endsAt = new Date(startsAt.getTime() + weeks * 7 * 24 * 60 * 60 * 1000);
+  const amount = session.amount_total ?? PRICES.spotlight.weekly * weeks;
+
+  const purchase = await recordPurchase({
+    businessId,
+    product: "spotlight",
+    amountCents: amount,
+    stripePaymentId: paymentId,
+    expiresAt: endsAt,
+  });
+
+  await createSpotlight({
+    businessId,
+    locationId,
+    weeks,
+    startsAt,
+    purchaseId: purchase.id,
+    performedBy: "stripe-webhook",
+  });
+}
+
 export async function POST(request: Request) {
   if (!stripe) {
     return NextResponse.json({ error: "Billing is disabled" }, { status: 503 });
@@ -211,11 +278,16 @@ export async function POST(request: Request) {
         if (businessId && !sub.metadata?.businessId) sub.metadata = { ...sub.metadata, businessId };
         await reconcileSubscription(sub);
       } else if (session.mode === "payment" && businessId) {
-        // One-off add-on (featured placement). Duration via metadata, default 30d.
-        const days = Number(session.metadata?.featuredDays ?? 30) || 30;
         const paymentId =
           typeof session.payment_intent === "string" ? session.payment_intent : session.id;
-        await reconcileFeaturedPurchase(businessId, paymentId, session.amount_total ?? 0, days);
+        if (session.metadata?.planKind === "spotlight") {
+          // Spotlight add-on: create the window (cap-aware) + a Purchase row.
+          await reconcileSpotlightPurchase(businessId, paymentId, session);
+        } else {
+          // One-off "featured placement". Duration via metadata, default 30d.
+          const days = Number(session.metadata?.featuredDays ?? 30) || 30;
+          await reconcileFeaturedPurchase(businessId, paymentId, session.amount_total ?? 0, days);
+        }
       }
       break;
     }

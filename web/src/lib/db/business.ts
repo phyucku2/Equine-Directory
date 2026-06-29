@@ -50,6 +50,11 @@ export const businessDetailInclude = {
   // stable result, then hoist OWNER in code (see sortImagesBySource).
   images: { orderBy: [{ source: "asc" }, { rank: "asc" }] },
   reviews: { where: { isApproved: true }, orderBy: { createdAt: "desc" } },
+  // Monetization relations the entitlements resolver needs (subscription tier +
+  // active spotlights) so the public listing can gate logo / stalls badge /
+  // review collection and surface trainers/events (monetization-tiers.md).
+  subscription: true,
+  spotlights: true,
 } satisfies Prisma.BusinessInclude;
 
 // OWNER first, then GOOGLE, then CRAWLER — within each source, preserve rank.
@@ -67,7 +72,8 @@ export type BusinessDetail = Prisma.BusinessGetPayload<{
   include: typeof businessDetailInclude;
 }>;
 
-// Card shape used in hub/search grids.
+// Card shape used in hub/search grids. Includes the subscription (so the card can
+// resolve canLogo / stallsBadge via getEntitlements) and the logo image row.
 export const businessCardInclude = {
   location: { include: { parent: true } },
   categories: {
@@ -76,7 +82,10 @@ export const businessCardInclude = {
     orderBy: [{ isPrimary: "desc" }, { rank: "asc" }],
     take: 3,
   },
-  images: { orderBy: { rank: "asc" }, take: 1 },
+  // Logo (rank -1) sorts first, then the primary photo — the card splits them.
+  images: { orderBy: { rank: "asc" }, take: 2 },
+  // Subscription so the card can resolve canLogo / stallsBadge via getEntitlements.
+  subscription: true,
 } satisfies Prisma.BusinessInclude;
 
 export type BusinessCard = Prisma.BusinessGetPayload<{

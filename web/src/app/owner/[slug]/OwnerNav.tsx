@@ -14,8 +14,11 @@ const TABS: { seg: string; label: string }[] = [
   { seg: "programs", label: "Programs" },
   { seg: "facility", label: "Facility" },
   { seg: "photos", label: "Photos" },
+  { seg: "trainers", label: "Trainers" },
+  { seg: "events", label: "Events" },
   { seg: "hours", label: "Hours" },
   { seg: "reviews", label: "Reviews & inbox" },
+  { seg: "plan", label: "Plan & upgrade" },
 ];
 
 export function OwnerNav({ slug, showTeam }: { slug: string; showTeam: boolean }) {
