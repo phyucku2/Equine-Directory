@@ -6,6 +6,8 @@ import { getByLocation, countByLocation } from "@/lib/db/business";
 import { countyUrl, cityUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { FeaturedSpotlights } from "@/components/business/FeaturedSpotlights";
+import { getActiveSpotlightsForArea } from "@/lib/db/spotlight";
 import { Pagination } from "@/components/Pagination";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
@@ -41,9 +43,10 @@ export default async function CountyPage({
   if (!loc) notFound();
 
   const page = Math.max(1, Number(pageParam) || 1);
-  const [cities, results] = await Promise.all([
+  const [cities, results, spotlights] = await Promise.all([
     getChildren(loc.id, "CITY"),
     getByLocation(loc.id, page),
+    page === 1 ? getActiveSpotlightsForArea(loc.id) : Promise.resolve([]),
   ]);
 
   return (
@@ -73,6 +76,8 @@ export default async function CountyPage({
           ))}
         </div>
       )}
+
+      <FeaturedSpotlights spotlights={spotlights} title="Featured near you" />
 
       {results.items.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">

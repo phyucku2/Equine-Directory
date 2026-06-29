@@ -9,6 +9,22 @@ export function categoryUrl(slug: string): string {
   return `/categories/${slug}`;
 }
 
+export function trainersUrl(businessSlug: string): string {
+  return `/business/${businessSlug}/trainers`;
+}
+
+export function trainerUrl(businessSlug: string, trainerSlug: string): string {
+  return `/business/${businessSlug}/trainers/${trainerSlug}`;
+}
+
+export function eventsUrl(): string {
+  return `/events`;
+}
+
+export function eventUrl(businessSlug: string, eventSlug: string): string {
+  return `/events/${businessSlug}/${eventSlug}`;
+}
+
 export function stateUrl(stateSlug: string): string {
   return `/locations/${stateSlug}`;
 }

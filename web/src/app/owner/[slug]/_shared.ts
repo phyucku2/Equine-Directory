@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import type { OwnerBusiness } from "@/lib/db/owner";
-import { getOwnedBusinessBySlug } from "@/lib/db/owner";
+import { getOwnedBusinessBySlug, loadBusinessForEntitlements } from "@/lib/db/owner";
+import { getEntitlements, type Entitlements } from "@/lib/entitlements";
 import type { StableMarker } from "@/components/stable/StableCard";
 
 // Load an owned business at a page boundary. Returns null when the slug doesn't
@@ -13,6 +14,19 @@ export async function loadOwnedBusiness(slug: string): Promise<OwnerBusiness | n
   if (!userId) return null;
   const isAdmin = session.user.role === "ADMIN";
   return getOwnedBusinessBySlug(userId, slug, isAdmin);
+}
+
+// Load an owned business AND resolve its entitlements (subscription + spotlights)
+// in one place, for tabs that gate on tier (Plan/Trainers/Events/Photos). Returns
+// null when the slug isn't owned (the page calls notFound()).
+export async function loadOwnedBusinessWithEntitlements(
+  slug: string,
+): Promise<{ business: OwnerBusiness; entitlements: Entitlements } | null> {
+  const business = await loadOwnedBusiness(slug);
+  if (!business) return null;
+  const withRels = await loadBusinessForEntitlements(business.id);
+  const entitlements = getEntitlements(withRels ?? {});
+  return { business, entitlements };
 }
 
 // Build the StableMarker the public StableCard renders, from the owner's

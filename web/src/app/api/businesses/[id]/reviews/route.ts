@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { requireUser, AuthError } from "@/lib/auth/guards";
 import { createReview } from "@/lib/db/review";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { getEntitlements } from "@/lib/entitlements";
+import { loadBusinessForEntitlements } from "@/lib/db/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +40,19 @@ export async function POST(
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     throw err;
+  }
+
+  // Review *display* is always public, but *collection* is gated: only barns on
+  // the Verified plan (canCollectReviews) accept new reviews (spec §Enforcement).
+  const business = await loadBusinessForEntitlements(id);
+  if (!business) {
+    return NextResponse.json({ error: "Business not found." }, { status: 404 });
+  }
+  if (!getEntitlements(business).canCollectReviews) {
+    return NextResponse.json(
+      { error: "This stable isn't collecting reviews yet.", upgradeRequired: true },
+      { status: 403 },
+    );
   }
 
   let body: { rating?: unknown; title?: unknown; content?: unknown };

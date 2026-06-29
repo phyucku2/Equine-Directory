@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_CATEGORY_WHERE, STABLES_SLUG } from "@/lib/db/business";
+import { getEntitlements } from "@/lib/entitlements";
 
 export const revalidate = 300;
 
+// Business ids with an active Spotlight covering now (monetization-tiers.md). The
+// map flags these so featured pins can be hoisted/styled. Capped per city is a
+// display concern handled by the city/area blocks; here we surface the raw flag.
+async function activeSpotlightBusinessIds(now: Date): Promise<Set<string>> {
+  const rows = await prisma.spotlight.findMany({
+    where: { status: "active", startsAt: { lte: now }, endsAt: { gte: now } },
+    select: { businessId: true },
+  });
+  return new Set(rows.map((r) => r.businessId));
+}
+
 // GET /api/map — lightweight GeoJSON of published stables for the map view.
 export async function GET() {
+  const now = new Date();
+  const spotlightIds = await activeSpotlightBusinessIds(now);
   const rows = await prisma.business.findMany({
     // V1: stables/barns only (boarding facilities). Other crawled categories
     // (farrier/vet/tack/feed/trainer) stay in the DB, just hidden for now.
@@ -37,6 +51,9 @@ export async function GET() {
       priceFrom: true,
       spotsAvailable: true,
       attributes: true,
+      // Subscription tier so we can gate the stalls badge + logo (getEntitlements
+      // flags). No spotlights here — spotlight membership comes from spotlightIds.
+      subscription: { select: { tier: true, status: true, trainerSeats: true } },
       location: { select: { name: true } },
       categories: {
         where: PUBLIC_CATEGORY_WHERE,
@@ -44,13 +61,23 @@ export async function GET() {
         orderBy: [{ isPrimary: "desc" }, { rank: "asc" }],
         take: 6,
       },
-      images: { select: { url: true }, orderBy: { rank: "asc" }, take: 1 },
+      // Logo (rank -1) sorts first, then the primary photo — split below.
+      images: { select: { url: true, isLogo: true }, orderBy: { rank: "asc" }, take: 2 },
     },
     take: 2000,
   });
 
   const features = rows.map((b) => {
-    const attrs = (b.attributes ?? {}) as { offering?: string; priceFrom?: number };
+    const attrs = (b.attributes ?? {}) as {
+      offering?: string;
+      priceFrom?: number;
+      stallsBadge?: boolean;
+    };
+    const ent = getEntitlements({ subscription: b.subscription });
+    const logoUrl = ent.canLogo ? b.images.find((i) => i.isLogo)?.url ?? null : null;
+    const photo = b.images.find((i) => !i.isLogo)?.url ?? null;
+    const stallsBadge =
+      ent.stallsBadge && attrs.stallsBadge === true && (b.spotsAvailable ?? 0) > 0;
     return {
       type: "Feature" as const,
       geometry: { type: "Point" as const, coordinates: [b.longitude, b.latitude] },
@@ -63,8 +90,13 @@ export async function GET() {
         categorySlugs: b.categories.map((c) => c.category.slug),
         rating: b.rating != null ? Number(b.rating) : null,
         reviewCount: b.reviewCount,
-        image: b.images[0]?.url ?? null,
-        featured: b.isFeatured,
+        image: photo,
+        logo: logoUrl,
+        // Owner-uploaded logo + "Stalls Available" badge (entitlement-gated).
+        stallsBadge,
+        // Featured = manual editorial flag OR an active paid Spotlight placement.
+        featured: b.isFeatured || spotlightIds.has(b.id),
+        spotlight: spotlightIds.has(b.id),
         verified: b.verificationBadge !== "UNVERIFIED",
         // V1: every listing is a boarding facility -> "Stalls Available" by
         // default; owners can override the offering later (Camp/Lessons/…).

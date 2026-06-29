@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 import { del } from "@vercel/blob";
 import { withOwner } from "@/lib/auth/owner-route";
-import { prisma } from "@/lib/prisma";
-import { entitlementsFor } from "@/lib/billing/entitlements";
+import { getEntitlements } from "@/lib/entitlements";
 import {
   createOwnerImage,
-  countOwnerImages,
+  countOwnerPhotos,
   deleteOwnerImage,
   reorderOwnerImages,
+  loadBusinessForEntitlements,
 } from "@/lib/db/owner";
 
 export const dynamic = "force-dynamic";
@@ -16,15 +16,15 @@ export const dynamic = "force-dynamic";
 const ALLOWED_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
 
-// Resolve the owner-photo entitlement (gate) + remaining quota for a business.
+// Resolve the owner-photo entitlement (maxImages, from getEntitlements) + the
+// remaining quota for a business. The logo is excluded from the count/quota.
 async function photoGate(businessId: string) {
-  const [sub, business, used] = await Promise.all([
-    prisma.subscription.findUnique({ where: { businessId } }),
-    prisma.business.findUnique({ where: { id: businessId }, select: { attributes: true } }),
-    countOwnerImages(businessId),
+  const [business, used] = await Promise.all([
+    loadBusinessForEntitlements(businessId),
+    countOwnerPhotos(businessId),
   ]);
-  const ent = entitlementsFor(sub, business?.attributes);
-  return { ent, used, remaining: ent.maxPhotos - used };
+  const max = business ? getEntitlements(business).maxImages : 0;
+  return { max, used, remaining: max - used };
 }
 
 // POST /api/owner/businesses/[id]/images
@@ -32,13 +32,13 @@ async function photoGate(businessId: string) {
 // Two responsibilities on one route, distinguished by the body shape:
 //  1. Blob client-upload token issuance + completion callback. The browser's
 //     `upload()` helper hits this with a HandleUploadBody; we gate token issuance
-//     behind entitlementsFor(...).ownerPhotos and enforce MIME + size in the
+//     behind getEntitlements(business).maxImages and enforce MIME + size in the
 //     presigned token (allowedContentTypes / maximumSizeInBytes). On
 //     `onUploadCompleted` (prod webhook) we insert the BusinessImage row.
 //  2. Direct JSON insert `{ url, width?, height?, altText?, caption? }` — used by
 //     the client right after upload (and the only insert path on localhost, where
 //     the Vercel completion webhook can't reach us). The insert is gated again
-//     behind ownerPhotos + the maxPhotos quota.
+//     behind the maxImages quota.
 export const POST = withOwner(async ({ id, request }) => {
   let body: unknown;
   try {
@@ -60,8 +60,8 @@ export const POST = withOwner(async ({ id, request }) => {
         body: body as HandleUploadBody,
         onBeforeGenerateToken: async () => {
           // Gate token issuance behind the owner-photo entitlement + quota.
-          const { ent, remaining } = await photoGate(id);
-          if (!ent.ownerPhotos) {
+          const { max, remaining } = await photoGate(id);
+          if (max <= 0) {
             throw new Error("Photo uploads are not included in this plan.");
           }
           if (remaining <= 0) {
@@ -82,8 +82,8 @@ export const POST = withOwner(async ({ id, request }) => {
           } catch {
             /* keep id */
           }
-          const { ent, remaining } = await photoGate(businessId);
-          if (!ent.ownerPhotos || remaining <= 0) return;
+          const { max, remaining } = await photoGate(businessId);
+          if (max <= 0 || remaining <= 0) return;
           await createOwnerImage(businessId, { url: blob.url });
         },
       });
@@ -106,15 +106,18 @@ export const POST = withOwner(async ({ id, request }) => {
     return NextResponse.json({ error: "A valid uploaded image url is required." }, { status: 400 });
   }
 
-  const { ent, remaining } = await photoGate(id);
-  if (!ent.ownerPhotos) {
+  const { max, remaining } = await photoGate(id);
+  if (max <= 0) {
     return NextResponse.json(
-      { error: "Photo uploads are not included in this plan." },
+      { error: "Photo uploads are not included in this plan.", upgradeRequired: true },
       { status: 403 },
     );
   }
   if (remaining <= 0) {
-    return NextResponse.json({ error: "Photo limit reached for this plan." }, { status: 403 });
+    return NextResponse.json(
+      { error: "Photo limit reached for this plan.", upgradeRequired: true },
+      { status: 403 },
+    );
   }
 
   const image = await createOwnerImage(id, {

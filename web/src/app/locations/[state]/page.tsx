@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { getStateBySlug, getChildren } from "@/lib/db/location";
 import { countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
+import { FeaturedSpotlights } from "@/components/business/FeaturedSpotlights";
+import { getActiveSpotlightsForArea } from "@/lib/db/spotlight";
 
 export const revalidate = 86400;
 
@@ -30,13 +32,19 @@ export default async function StatePage({ params }: { params: Promise<{ state: s
   const { state } = await params;
   const loc = await getStateBySlug(state);
   if (!loc) notFound();
-  const counties = await getChildren(loc.id, "COUNTY");
+  const [counties, spotlights] = await Promise.all([
+    getChildren(loc.id, "COUNTY"),
+    getActiveSpotlightsForArea(loc.id),
+  ]);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <Breadcrumbs items={[{ name: "Home", url: "/" }, { name: loc.name, url: stateUrl(state) }]} />
       <h1 className="mt-4 text-3xl font-semibold text-pine">Horse stables across {loc.name}</h1>
       <p className="mt-1 text-ink/55">Browse by county.</p>
+
+      <FeaturedSpotlights spotlights={spotlights} title="Featured near you" />
+
       <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {counties.map((c) => (
           <Link

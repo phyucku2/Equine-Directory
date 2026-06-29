@@ -4,9 +4,16 @@ import type { BusinessCard as BusinessCardData } from "@/lib/db/business";
 import { businessUrl } from "@/lib/urls";
 import { StarRating } from "@/components/StarRating";
 import { VerificationBadge } from "@/components/business/VerificationBadge";
+import { BusinessLogo } from "@/components/business/BusinessLogo";
+import { getEntitlements } from "@/lib/entitlements";
+import { readStallsBadge } from "@/lib/db/owner";
 
 export function BusinessCard({ business }: { business: BusinessCardData }) {
-  const img = business.images[0];
+  // Split logo (rank -1, isLogo) from the primary photo, gated by entitlements.
+  const ent = getEntitlements(business);
+  const logo = ent.canLogo ? business.images.find((i) => i.isLogo) ?? null : null;
+  const img = business.images.find((i) => !i.isLogo) ?? null;
+  const showStalls = ent.stallsBadge && readStallsBadge(business.attributes) && (business.spotsAvailable ?? 0) > 0;
   const primary = business.categories[0]?.category;
   const city = business.location;
   const county = business.location.parent;
@@ -38,6 +45,12 @@ export function BusinessCard({ business }: { business: BusinessCardData }) {
             Featured
           </span>
         )}
+        {showStalls && (
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full bg-emerald-600/95 px-2 py-0.5 text-xs font-semibold text-white">
+            <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
+            Stalls Available
+          </span>
+        )}
         {img?.caption && (
           <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
             {img.caption}
@@ -46,7 +59,8 @@ export function BusinessCard({ business }: { business: BusinessCardData }) {
       </div>
 
       <div className="flex flex-1 flex-col gap-2 p-4">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-2">
+          {logo && <BusinessLogo url={logo.url} name={business.name} size="sm" />}
           <h3 className="line-clamp-2 min-h-[2.5rem] text-lg font-semibold text-pine group-hover:text-brass">
             {business.name}
           </h3>

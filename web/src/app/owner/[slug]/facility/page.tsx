@@ -1,20 +1,38 @@
 import { notFound } from "next/navigation";
-import { loadOwnedBusiness } from "../_shared";
+import { loadOwnedBusinessWithEntitlements } from "../_shared";
 import { FacilityForm } from "./FacilityForm";
+import { UpgradePrompt } from "../_facets/UpgradePrompt";
 
 export const dynamic = "force-dynamic";
 
 // Facility & Security tab: amenities (expanded vocab), security features, and
 // the general policies (excluding the trainer & access policies owned by other
-// tabs).
+// tabs). Editing is gated behind the Verified plan (canEditFacets).
 export default async function OwnerFacilityPage({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const business = await loadOwnedBusiness(slug);
-  if (!business) notFound();
+  const loaded = await loadOwnedBusinessWithEntitlements(slug);
+  if (!loaded) notFound();
+  const { business, entitlements } = loaded;
+
+  if (!entitlements.canEditFacets) {
+    return (
+      <div>
+        <h3 className="mb-1 text-sm font-semibold text-pine">Facility &amp; security</h3>
+        <p className="mb-5 text-xs text-ink/50">
+          Amenities, safety features, and barn policies power your search filters.
+        </p>
+        <UpgradePrompt
+          slug={business.slug}
+          title="Editing facets is part of the Verified plan"
+          body="Verify your barn to edit amenities, security features, and policies. Your crawled details stay visible to searchers in the meantime."
+        />
+      </div>
+    );
+  }
 
   return (
     <div>

@@ -7,7 +7,17 @@ type GalleryImage = { url: string; altText: string | null; caption: string | nul
 
 // Listing photo gallery: a main image with a clickable thumbnail strip.
 // Google Places photos carry author attribution (required) — shown on the image.
-export function Gallery({ images, name }: { images: GalleryImage[]; name: string }) {
+// `stallsBadge` overlays a "Stalls Available" pill on the primary image when the
+// barn is entitled (stallsBadge) and has open spots (monetization-tiers.md).
+export function Gallery({
+  images,
+  name,
+  stallsBadge = false,
+}: {
+  images: GalleryImage[];
+  name: string;
+  stallsBadge?: boolean;
+}) {
   const [active, setActive] = useState(0);
   if (images.length === 0) return null;
   const main = images[active] ?? images[0];
@@ -23,6 +33,12 @@ export function Gallery({ images, name }: { images: GalleryImage[]; name: string
           className="object-cover"
           priority
         />
+        {stallsBadge && active === 0 && (
+          <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-emerald-600/95 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+            <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden />
+            Stalls Available
+          </span>
+        )}
         {main.caption && (
           <span className="absolute bottom-2 right-2 rounded bg-black/55 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
             {main.caption}

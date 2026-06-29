@@ -105,6 +105,9 @@ enum SubTier {
   FREE
   PRO
   PREMIUM
+  VERIFIED
+  TEAM
+  EVENTS
 }
 
 enum SubStatus {
@@ -193,6 +196,11 @@ model Business {
   subscription Subscription?
   purchases    Purchase[]
 
+  // Monetization tiers (see specs/monetization-tiers.md)
+  trainers   Trainer[]
+  events     Event[]
+  spotlights Spotlight[]
+
   // Crawler / audit
   dataSourceUrl    String?
   externalSourceId String? // dedup key from source
@@ -231,6 +239,8 @@ model Location {
   description String?
   businesses  Business[]
   seo         SeoMetadata?
+  events      Event[]
+  spotlights  Spotlight[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -347,6 +357,7 @@ model BusinessImage {
   height     Int?
   rank       Int         @default(0)
   source     ImageSource @default(CRAWLER)
+  isLogo     Boolean     @default(false)
   uploadedAt DateTime    @default(now())
 
   @@index([businessId])
@@ -564,6 +575,7 @@ model Subscription {
   id                   String    @id @default(cuid())
   businessId           String    @unique
   tier                 SubTier   @default(FREE)
+  trainerSeats         Int       @default(0)
   status               SubStatus @default(ACTIVE)
   stripeCustomerId     String?
   stripeSubscriptionId String?   @unique
@@ -588,5 +600,76 @@ model Purchase {
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
+  @@index([businessId])
+}
+
+// ─────────────────────────── Monetization tiers ───────────────────────────
+// See specs/monetization-tiers.md. Trainer profiles (TEAM tier), dated Events
+// (EVENTS tier), and geo-targeted Spotlight placements (add-on). All gating
+// reads from getEntitlements(business) in src/lib/entitlements.ts.
+
+// Trainer profile (TEAM tier). 2 seats included; +seats via Subscription.trainerSeats.
+model Trainer {
+  id             String   @id @default(cuid())
+  businessId     String
+  business       Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  name           String   @db.VarChar(255)
+  slug           String   @db.VarChar(255)
+  bio            String?
+  photoUrl       String?  @db.Text
+  disciplines    String[] @default([])
+  certifications String[] @default([])
+  email          String?  @db.VarChar(255)
+  phone          String?  @db.VarChar(32)
+  rank           Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+}
+
+// Dated event / show / clinic / camp (EVENTS tier). type uses the program-type vocab.
+model Event {
+  id              String    @id @default(cuid())
+  businessId      String
+  business        Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  type            String    @db.VarChar(64) // program-type vocab: show/clinic/summer-camp/…
+  title           String    @db.VarChar(255)
+  slug            String    @db.VarChar(255)
+  description     String?
+  startDate       DateTime
+  endDate         DateTime?
+  price           Int? // cents
+  registrationUrl String?   @db.VarChar(512)
+  locationId      String?
+  location        Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  imageUrl        String?   @db.Text
+  isPublished     Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@index([startDate])
+}
+
+// Geo-targeted featured placement add-on. Active when now ∈ [startsAt, endsAt];
+// max 3 active per city (locationId), auto-rotate weekly.
+model Spotlight {
+  id              String   @id @default(cuid())
+  businessId      String
+  business        Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  locationId      String
+  location        Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  startsAt        DateTime
+  endsAt          DateTime
+  weeklyRateCents Int      @default(2500)
+  status          String   @default("active")
+  purchaseId      String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([locationId, status])
   @@index([businessId])
 }

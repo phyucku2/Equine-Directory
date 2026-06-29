@@ -17,6 +17,14 @@ import { SaveHeartButton } from "@/components/saved/SaveHeartButton";
 import { InquiryForm } from "@/components/inquiry/InquiryForm";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { facetLabel, PROGRAM_TYPES, type FacetKey } from "@/lib/facets";
+import { getEntitlements } from "@/lib/entitlements";
+import { readStallsBadge } from "@/lib/db/owner";
+import { getListingTrainers } from "@/lib/db/trainers";
+import { getUpcomingEventsForBusiness } from "@/lib/db/events";
+import { BusinessLogo } from "@/components/business/BusinessLogo";
+import { TrainerCard } from "@/components/business/TrainerCard";
+import { EventListItem } from "@/components/events/EventListItem";
+import { trainersUrl } from "@/lib/urls";
 
 export const revalidate = 3600;
 
@@ -116,7 +124,20 @@ export default async function BusinessPage({
   const business = await getBusinessBySlug(slug);
   if (!business) notFound();
 
-  const related = await getRelated(business);
+  // Monetization entitlements drive the logo, stalls badge, review collection,
+  // and the trainer/event surfaces (monetization-tiers.md §"Public display").
+  const ent = getEntitlements(business);
+  const logo = ent.canLogo ? business.images.find((i) => i.isLogo) ?? null : null;
+  // Gallery shows real photos only (the logo lives in the header).
+  const galleryImages = business.images.filter((i) => !i.isLogo);
+  const showStallsBadge =
+    ent.stallsBadge && readStallsBadge(business.attributes) && (business.spotsAvailable ?? 0) > 0;
+
+  const [related, trainers, events] = await Promise.all([
+    getRelated(business),
+    getListingTrainers(business.id, ent.maxTrainers),
+    getUpcomingEventsForBusiness(business.id, ent.canEvents),
+  ]);
   const county = business.location.parent;
   const state = county?.parent;
   const phoneHref = telHref(business.phone);
@@ -176,16 +197,18 @@ export default async function BusinessPage({
       <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_320px]">
         {/* Main column */}
         <div>
-          {business.images.length > 0 && (
+          {galleryImages.length > 0 && (
             <div className="mb-6">
-              <Gallery images={business.images} name={business.name} />
+              <Gallery images={galleryImages} name={business.name} stallsBadge={showStallsBadge} />
             </div>
           )}
 
           {/* Trust card */}
           <div className="rounded-2xl border border-leather/15 bg-white p-6">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+              <div className="flex items-start gap-3">
+                {logo && <BusinessLogo url={logo.url} name={business.name} />}
+                <div>
                 <h1 className="text-2xl font-semibold text-pine sm:text-3xl">{business.name}</h1>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <VerificationBadge badge={business.verificationBadge} />
@@ -194,6 +217,7 @@ export default async function BusinessPage({
                       Featured
                     </span>
                   )}
+                </div>
                 </div>
               </div>
               <div className="flex items-start gap-3">
@@ -431,6 +455,35 @@ export default async function BusinessPage({
             </FacetSection>
           )}
 
+          {/* Trainers (TEAM tier) */}
+          {trainers.length > 0 && (
+            <section className="mt-8">
+              <div className="flex items-baseline justify-between gap-2">
+                <h2 className="text-lg font-semibold text-pine">Trainers</h2>
+                <Link href={trainersUrl(business.slug)} className="text-sm text-brass hover:underline">
+                  View all →
+                </Link>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                {trainers.map((t) => (
+                  <TrainerCard key={t.id} trainer={t} businessSlug={business.slug} />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Upcoming events (EVENTS tier) */}
+          {events.length > 0 && (
+            <section className="mt-8">
+              <h2 className="text-lg font-semibold text-pine">Upcoming events</h2>
+              <ul className="mt-4 space-y-3">
+                {events.map((e) => (
+                  <EventListItem key={e.id} event={e} />
+                ))}
+              </ul>
+            </section>
+          )}
+
           {/* Reviews */}
           <section className="mt-8">
             <h2 className="text-lg font-semibold text-pine">Reviews</h2>
@@ -446,13 +499,25 @@ export default async function BusinessPage({
                     </div>
                     {r.title && <p className="mt-1 font-medium text-ink/80">{r.title}</p>}
                     <p className="mt-1 text-sm text-ink/70">{r.content}</p>
+                    {r.ownerResponse && (
+                      <div className="mt-3 rounded-lg bg-pine/5 p-3 ring-1 ring-leather/15">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-pine">
+                          Response from {business.name}
+                        </p>
+                        <p className="mt-1 text-sm text-ink/70">{r.ownerResponse}</p>
+                      </div>
+                    )}
                   </li>
                 ))}
               </ul>
             )}
-            <div className="mt-6">
-              <ReviewForm businessId={business.id} businessSlug={business.slug} />
-            </div>
+            {/* "Leave a review" is shown only when the barn collects reviews
+                (VERIFIED+). Display above stays public for everyone. */}
+            {ent.canCollectReviews && (
+              <div className="mt-6">
+                <ReviewForm businessId={business.id} businessSlug={business.slug} />
+              </div>
+            )}
           </section>
         </div>
 

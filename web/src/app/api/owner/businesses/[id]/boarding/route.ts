@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withOwner } from "@/lib/auth/owner-route";
+import { requireEntitlement } from "@/lib/auth/owner-entitlement";
 import { updateBoarding, toCount, toAcreage } from "@/lib/db/owner";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,13 @@ export const dynamic = "force-dynamic";
 // JSON. priceFrom is derived server-side from pricing[].from. Touched facet keys
 // (boardTypes, policies, pricing) are appended to ownerEditedFacets.
 export const PUT = withOwner(async ({ id, request }) => {
+  const gate = await requireEntitlement(
+    id,
+    (e) => e.canEditFacets,
+    "Editing facets requires the Verified plan.",
+  );
+  if (gate.blocked) return gate.response;
+
   let body: {
     boardTypes?: unknown;
     policies?: unknown;

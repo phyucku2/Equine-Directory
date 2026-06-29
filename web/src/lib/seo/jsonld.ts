@@ -1,6 +1,9 @@
 // schema.org JSON-LD builders (design-dossier.md §5.3).
 import type { BusinessDetail } from "@/lib/db/business";
-import { absoluteUrl, businessUrl } from "@/lib/urls";
+import type { PublicTrainer } from "@/lib/db/trainers";
+import type { PublicEvent } from "@/lib/db/events";
+import { facetLabel } from "@/lib/facets";
+import { absoluteUrl, businessUrl, trainerUrl, eventUrl } from "@/lib/urls";
 import { showRating } from "@/lib/format";
 import { SITE } from "@/lib/site";
 
@@ -85,7 +88,8 @@ export function localBusinessLd(b: BusinessDetail) {
   if (b.phone) ld.telephone = b.phone;
   if (b.website) ld.sameAs = [b.website];
   if (primaryCat) ld.additionalType = primaryCat;
-  if (b.images.length) ld.image = b.images.map((i) => i.url);
+  const photos = b.images.filter((i) => !i.isLogo);
+  if (photos.length) ld.image = photos.map((i) => i.url);
   if (b.rating != null && showRating(b.reviewCount)) {
     ld.aggregateRating = {
       "@type": "AggregateRating",
@@ -100,6 +104,66 @@ export function localBusinessLd(b: BusinessDetail) {
       reviewRating: { "@type": "Rating", ratingValue: r.rating },
       reviewBody: r.content,
     }));
+  }
+  return ld;
+}
+
+// schema.org Person for a trainer profile (monetization-tiers.md §"Public display").
+export function trainerLd(
+  trainer: PublicTrainer,
+  business: { name: string; slug: string },
+) {
+  const ld: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: trainer.name,
+    url: absoluteUrl(trainerUrl(business.slug, trainer.slug)),
+    worksFor: { "@type": "Organization", name: business.name, url: absoluteUrl(businessUrl(business.slug)) },
+  };
+  if (trainer.bio) ld.description = trainer.bio;
+  if (trainer.photoUrl) ld.image = trainer.photoUrl;
+  if (trainer.email) ld.email = trainer.email;
+  if (trainer.phone) ld.telephone = trainer.phone;
+  const knows = trainer.disciplines.map((d) => facetLabel("disciplines", d));
+  if (knows.length) ld.knowsAbout = knows;
+  return ld;
+}
+
+// schema.org Event for a dated event/show/clinic/camp (Event JSON-LD, dated).
+export function eventLd(event: PublicEvent) {
+  const url = absoluteUrl(eventUrl(event.business.slug, event.slug));
+  const ld: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: event.title,
+    url,
+    startDate: event.startDate.toISOString(),
+    eventStatus: "https://schema.org/EventScheduled",
+    eventAttendanceMode: "https://schema.org/OfflineEventAttendanceMode",
+    organizer: {
+      "@type": "Organization",
+      name: event.business.name,
+      url: absoluteUrl(businessUrl(event.business.slug)),
+    },
+  };
+  if (event.endDate) ld.endDate = event.endDate.toISOString();
+  if (event.description) ld.description = event.description;
+  if (event.imageUrl) ld.image = event.imageUrl;
+  if (event.location) {
+    ld.location = {
+      "@type": "Place",
+      name: event.location.name,
+      address: { "@type": "PostalAddress", addressLocality: event.location.name, addressRegion: "FL", addressCountry: "US" },
+    };
+  }
+  if (event.price != null) {
+    ld.offers = {
+      "@type": "Offer",
+      price: (event.price / 100).toFixed(2),
+      priceCurrency: "USD",
+      url: event.registrationUrl ?? url,
+      availability: "https://schema.org/InStock",
+    };
   }
   return ld;
 }

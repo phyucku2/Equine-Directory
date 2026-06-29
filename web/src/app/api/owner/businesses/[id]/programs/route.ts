@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { withOwner } from "@/lib/auth/owner-route";
+import { requireEntitlement } from "@/lib/auth/owner-entitlement";
 import { updatePrograms } from "@/lib/db/owner";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,13 @@ export const dynamic = "force-dynamic";
 // season/ageRange are capped strings, price/capacity are non-negative ints.
 // "programs" is appended to ownerEditedFacets.
 export const PUT = withOwner(async ({ id, request }) => {
+  const gate = await requireEntitlement(
+    id,
+    (e) => e.canEditFacets,
+    "Editing facets requires the Verified plan.",
+  );
+  if (gate.blocked) return gate.response;
+
   let body: { programs?: unknown };
   try {
     body = await request.json();

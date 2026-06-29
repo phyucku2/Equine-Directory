@@ -35,11 +35,15 @@ function Stars({ n }: { n: number }) {
 
 export function ReviewsInbox({
   businessId,
+  slug,
+  canRespond,
   reviews,
   inquiries,
   initialTab,
 }: {
   businessId: string;
+  slug: string;
+  canRespond: boolean;
   reviews: Review[];
   inquiries: Inquiry[];
   initialTab: "reviews" | "inbox";
@@ -61,9 +65,19 @@ export function ReviewsInbox({
 
       {tab === "reviews" ? (
         <div className="space-y-4">
+          {!canRespond && (
+            <div className="rounded-xl border border-leather/15 bg-cream-dark/40 p-4 text-sm text-ink/60">
+              Responding to reviews is part of the Verified plan. Reviews still show
+              publicly.{" "}
+              <a href={`/owner/${slug}/plan`} className="font-medium text-pine underline">
+                Upgrade
+              </a>{" "}
+              to reply and collect new reviews.
+            </div>
+          )}
           {reviews.length === 0 && <p className="text-sm text-ink/50">No reviews yet.</p>}
           {reviews.map((r) => (
-            <ReviewCard key={r.id} businessId={businessId} review={r} />
+            <ReviewCard key={r.id} businessId={businessId} review={r} canRespond={canRespond} />
           ))}
         </div>
       ) : (
@@ -78,7 +92,15 @@ export function ReviewsInbox({
   );
 }
 
-function ReviewCard({ businessId, review }: { businessId: string; review: Review }) {
+function ReviewCard({
+  businessId,
+  review,
+  canRespond,
+}: {
+  businessId: string;
+  review: Review;
+  canRespond: boolean;
+}) {
   const router = useRouter();
   const [text, setText] = useState(review.ownerResponse ?? "");
   const [editing, setEditing] = useState(!review.ownerResponse);
@@ -125,6 +147,7 @@ function ReviewCard({ businessId, review }: { businessId: string; review: Review
       {review.title && <p className="mt-1 text-sm font-medium text-pine">{review.title}</p>}
       <p className="mt-1 whitespace-pre-wrap text-sm text-ink/75">{review.content}</p>
 
+      {!canRespond && !review.ownerResponse ? null : (
       <div className="mt-3 rounded-lg bg-cream-dark/40 p-3">
         <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-ink/45">
           Owner response
@@ -174,6 +197,7 @@ function ReviewCard({ businessId, review }: { businessId: string; review: Review
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
