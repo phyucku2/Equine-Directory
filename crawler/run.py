@@ -57,6 +57,28 @@ def _is_nonbarn(primary_type: str | None) -> bool:
     return bool(primary_type) and primary_type in _NONBARN_PRIMARY_TYPES
 
 
+# gosom returns human-readable category labels (e.g. "Horse boarding service",
+# "Park", "Farm shop") rather than Google's snake_case primaryType, so the gmaps
+# pipeline screens with keyword matching instead of the exact-type set above.
+_NONBARN_TEXT_KEYWORDS = (
+    "park", "campground", "rv ", "resort", "hotel", "motel", "lodge", " inn ",
+    "museum", "store", "supply", "feed", "tractor", "hardware", "dealer",
+    "school", "college", "university", "church", "temple", "mosque",
+    "restaurant", "cafe", " bar ", "grill", "golf", "veterinar", "hospital",
+    "clinic", "pharmacy", "fairground", "government", "courthouse", "library",
+    "gym", "fitness", "zoo", "aquarium", "attraction", "trailhead", "hunting",
+    "winery", "vineyard", "brewery", "real estate", "auction", "rodeo",
+    "supplier", "equipment", "shop", "nursery", "garden center",
+)
+
+
+def _is_nonbarn_text(category: str | None) -> bool:
+    if not category:
+        return False
+    c = " " + category.lower() + " "
+    return any(k in c for k in _NONBARN_TEXT_KEYWORDS)
+
+
 def _start_job(conn, source_key: str, url: str) -> str:
     job_id = gen_id()
     with conn.cursor() as cur:
@@ -122,11 +144,15 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                 lat = n.latitude if n.latitude is not None else clat
                 lng = n.longitude if n.longitude is not None else clng
 
-                if source.kind == "places":
+                if source.kind in ("places", "gmaps"):
                     # Google returned this for a category-targeted search. Auto-
                     # publish genuine facilities, but route clear non-barns (parks,
                     # schools, hotels, stores, …) to moderation instead of the map.
-                    nonbarn = _is_nonbarn(n.primary_type)
+                    nonbarn = (
+                        _is_nonbarn_text(n.primary_type)
+                        if source.kind == "gmaps"
+                        else _is_nonbarn(n.primary_type)
+                    )
                     grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
                     if nonbarn:
                         print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
@@ -182,10 +208,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Equine Directory crawler")
     parser.add_argument("--source", default="fixtures", help="source key (default: fixtures)")
     parser.add_argument("--limit", type=int, default=None)
+    parser.add_argument("--file", default=None, help="results file for --source gmaps-file (gosom JSON)")
     grp = parser.add_mutually_exclusive_group()
     grp.add_argument("--llm", dest="use_llm", action="store_true", default=None)
     grp.add_argument("--no-llm", dest="use_llm", action="store_false")
     args = parser.parse_args()
+    if args.file:
+        os.environ["GMAPS_FILE"] = args.file
     asyncio.run(run(args.source, args.limit, args.use_llm))
 
 
