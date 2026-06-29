@@ -236,12 +236,23 @@ export interface BoardingInput {
 
 export async function updateBoarding(businessId: string, input: BoardingInput) {
   const boardTypes = sanitizeFacet("boardTypes", input.boardTypes);
-  const policies = sanitizeFacet("policies", input.policies);
+  // This tab owns only the access-policy slugs of `policies`; the trainer
+  // (Disciplines) and facility (Facility) slugs are preserved server-side.
+  const accessPolicies = sanitizeFacet("policies", input.policies).filter((p) =>
+    ACCESS_POLICY_SLUGS.has(p),
+  );
   const pricing = sanitizePricing(input.pricing, boardTypes);
   // priceFrom is derived = min over pricing[].from (kept for fast sort/filter).
   const priceFrom = derivePriceFrom(pricing);
 
   return prisma.$transaction(async (tx) => {
+    const current = await tx.business.findUniqueOrThrow({
+      where: { id: businessId },
+      select: { policies: true },
+    });
+    const otherPolicies = current.policies.filter((p) => !ACCESS_POLICY_SLUGS.has(p));
+    const mergedPolicies = dedupe([...otherPolicies, ...accessPolicies]);
+
     const ownerEditedFacets = await mergedEditedFacets(tx, businessId, [
       "boardTypes",
       "policies",
@@ -251,7 +262,7 @@ export async function updateBoarding(businessId: string, input: BoardingInput) {
       where: { id: businessId },
       data: {
         boardTypes,
-        policies,
+        policies: mergedPolicies,
         spotsAvailable: input.spotsAvailable,
         stallCount: input.stallCount,
         acreage: input.acreage,
@@ -348,10 +359,10 @@ export interface FacilityInput {
 export async function updateFacility(businessId: string, input: FacilityInput) {
   const amenities = sanitizeFacet("amenities", input.amenities);
   const securityFeatures = sanitizeFacet("securityFeatures", input.securityFeatures);
-  // This tab owns the non-trainer policy slugs; the trainer (open/closed-barn)
-  // slugs are owned by the Disciplines tab and preserved here.
+  // This tab owns the general policy slugs; the trainer (Disciplines) and access
+  // (Boarding) slugs are owned by other tabs and preserved here.
   const policies = sanitizeFacet("policies", input.policies).filter(
-    (p) => !TRAINER_POLICY_SLUGS.has(p),
+    (p) => !TRAINER_POLICY_SLUGS.has(p) && !ACCESS_POLICY_SLUGS.has(p),
   );
 
   return prisma.$transaction(async (tx) => {
@@ -359,8 +370,10 @@ export async function updateFacility(businessId: string, input: FacilityInput) {
       where: { id: businessId },
       select: { policies: true },
     });
-    const trainerPolicies = current.policies.filter((p) => TRAINER_POLICY_SLUGS.has(p));
-    const mergedPolicies = dedupe([...trainerPolicies, ...policies]);
+    const reservedPolicies = current.policies.filter(
+      (p) => TRAINER_POLICY_SLUGS.has(p) || ACCESS_POLICY_SLUGS.has(p),
+    );
+    const mergedPolicies = dedupe([...reservedPolicies, ...policies]);
 
     const ownerEditedFacets = await mergedEditedFacets(tx, businessId, [
       "amenities",
@@ -400,9 +413,12 @@ export async function updatePrograms(businessId: string, programs: unknown) {
 
 // --- JSON shape validation (server-side; never trust the client blob). ---
 
-// open-barn / closed-barn are the trainer-policy slugs surfaced on the
-// Disciplines tab; all other POLICIES live on the Facility tab.
+// Each policy slug has exactly one owning tab so saves never clobber each other:
+//  - open-barn / closed-barn → Disciplines tab (trainer policy)
+//  - 24-7-access / daylight-access-only → Boarding tab (access policy)
+//  - everything else → Facility tab
 export const TRAINER_POLICY_SLUGS = new Set(["open-barn", "closed-barn"]);
+export const ACCESS_POLICY_SLUGS = new Set(["24-7-access", "daylight-access-only"]);
 
 export interface PriceEntry {
   from: number | null;

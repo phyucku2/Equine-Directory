@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BOARD_TYPES, facetLabel } from "@/lib/facets";
+import { facetLabel } from "@/lib/facets";
 import type { PricingMap, PriceEntry } from "@/lib/db/owner";
 import {
   ChipMultiSelect,
