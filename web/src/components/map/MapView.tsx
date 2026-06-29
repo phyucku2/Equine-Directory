@@ -6,6 +6,23 @@ import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { StableCard, type StableMarker } from "@/components/stable/StableCard";
 import { SaveSearchButton, type SaveSearchFilters } from "@/components/map/SaveSearchButton";
+import { DISCIPLINES, BOARD_TYPES, TRAINING_TYPES, facetLabel } from "@/lib/facets";
+
+const PRICE_OPTIONS = [
+  { value: 500, label: "Under $500" },
+  { value: 800, label: "Under $800" },
+  { value: 1200, label: "Under $1,200" },
+  { value: 2000, label: "Under $2,000" },
+];
+
+// Boolean facet flags: each tests a slug against a StableMarker array field.
+const FLAG_FILTERS: { key: string; label: string; test: (s: StableMarker) => boolean }[] = [
+  { key: "available", label: "Spots available", test: (s) => (s.spotsAvailable ?? 0) > 0 },
+  { key: "cameras", label: "🎥 Cameras", test: (s) => s.securityFeatures?.includes("security-cameras") ?? false },
+  { key: "indoor", label: "Indoor arena", test: (s) => s.amenities?.includes("indoor-arena") ?? false },
+  { key: "camp", label: "Summer camp", test: (s) => s.programTypes?.includes("summer-camp") ?? false },
+  { key: "openBarn", label: "Open barn", test: (s) => s.policies?.includes("open-barn") ?? false },
+];
 
 // Google Maps is loaded at runtime; we use the global namespace untyped.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,10 +55,19 @@ export function MapView() {
   const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
+  // Zillow-style facet selections (multi-select slug sets + single price cap + flags).
+  const [disciplines, setDisciplines] = useState<Set<string>>(new Set());
+  const [boardTypes, setBoardTypes] = useState<Set<string>>(new Set());
+  const [trainingTypes, setTrainingTypes] = useState<Set<string>>(new Set());
+  const [priceMax, setPriceMax] = useState<number | null>(null);
+  const [flags, setFlags] = useState<Set<string>>(new Set());
   const [view, setView] = useState<"map" | "list">("map");
   // Lightweight saved-id merge (M5): render hearts filled where the signed-in
   // user has already favorited a listing. 401 (signed out) just yields no ids.
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+
+  const hasSome = (have: string[] | undefined, want: Set<string>) =>
+    want.size === 0 || (have ?? []).some((v) => want.has(v));
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -49,11 +75,45 @@ export function MapView() {
       (s) =>
         (!q || `${s.name} ${s.city}`.toLowerCase().includes(q)) &&
         (minRating == null || (s.rating ?? 0) >= minRating) &&
-        (!verifiedOnly || s.verified),
+        (!verifiedOnly || s.verified) &&
+        hasSome(s.disciplines, disciplines) &&
+        hasSome(s.boardTypes, boardTypes) &&
+        hasSome(s.trainingTypes, trainingTypes) &&
+        (priceMax == null || (s.priceFrom != null && s.priceFrom <= priceMax)) &&
+        FLAG_FILTERS.every((f) => !flags.has(f.key) || f.test(s)),
     );
-  }, [items, query, minRating, verifiedOnly]);
+  }, [items, query, minRating, verifiedOnly, disciplines, boardTypes, trainingTypes, priceMax, flags]);
 
-  const activeFilters = (minRating != null ? 1 : 0) + (verifiedOnly ? 1 : 0);
+  const activeFilters =
+    (minRating != null ? 1 : 0) +
+    (verifiedOnly ? 1 : 0) +
+    disciplines.size +
+    boardTypes.size +
+    trainingTypes.size +
+    (priceMax != null ? 1 : 0) +
+    flags.size;
+
+  // Toggle a slug in a Set-valued filter (immutably, so React re-renders).
+  const toggleIn = (
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
+    slug: string,
+  ) =>
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+
+  const resetFacets = () => {
+    setMinRating(null);
+    setVerifiedOnly(false);
+    setDisciplines(new Set());
+    setBoardTypes(new Set());
+    setTrainingTypes(new Set());
+    setPriceMax(null);
+    setFlags(new Set());
+  };
 
   // Snapshot the current filters + map viewport for "Save this search" (M8a).
   // Mirrors the /api/saved-searches filter shape (which mirrors /api/map params).
@@ -63,6 +123,15 @@ export function MapView() {
     if (q) f.q = q;
     if (minRating != null) f.rating = minRating;
     if (verifiedOnly) f.verified = true;
+    if (disciplines.size) f.disciplines = [...disciplines];
+    if (boardTypes.size) f.boardTypes = [...boardTypes];
+    if (trainingTypes.size) f.trainingTypes = [...trainingTypes];
+    if (priceMax != null) f.priceMax = priceMax;
+    if (flags.has("cameras")) f.securityFeatures = ["security-cameras"];
+    if (flags.has("indoor")) f.amenities = ["indoor-arena"];
+    if (flags.has("openBarn")) f.policies = ["open-barn"];
+    if (flags.has("camp")) f.programTypes = ["summer-camp"];
+    if (flags.has("available")) f.available = true;
     const bounds = mapRef.current?.getBounds?.();
     if (bounds) {
       const ne = bounds.getNorthEast();
@@ -305,6 +374,50 @@ export function MapView() {
                 Verified <span aria-hidden>✕</span>
               </button>
             )}
+            {[...disciplines].map((slug) => (
+              <button
+                key={`d-${slug}`}
+                onClick={() => toggleIn(setDisciplines, slug)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass"
+              >
+                {facetLabel("disciplines", slug)} <span aria-hidden>✕</span>
+              </button>
+            ))}
+            {[...boardTypes].map((slug) => (
+              <button
+                key={`b-${slug}`}
+                onClick={() => toggleIn(setBoardTypes, slug)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass"
+              >
+                {facetLabel("boardTypes", slug)} <span aria-hidden>✕</span>
+              </button>
+            ))}
+            {[...trainingTypes].map((slug) => (
+              <button
+                key={`t-${slug}`}
+                onClick={() => toggleIn(setTrainingTypes, slug)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass"
+              >
+                {facetLabel("trainingTypes", slug)} <span aria-hidden>✕</span>
+              </button>
+            ))}
+            {priceMax != null && (
+              <button
+                onClick={() => setPriceMax(null)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass"
+              >
+                Under ${priceMax.toLocaleString()} <span aria-hidden>✕</span>
+              </button>
+            )}
+            {FLAG_FILTERS.filter((f) => flags.has(f.key)).map((f) => (
+              <button
+                key={`f-${f.key}`}
+                onClick={() => toggleIn(setFlags, f.key)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brass/10 px-3 py-1 text-xs font-medium text-brass"
+              >
+                {f.label} <span aria-hidden>✕</span>
+              </button>
+            ))}
           </div>
         )}
       </div>
@@ -444,49 +557,146 @@ export function MapView() {
       {/* Filter sheet */}
       {showFilters && (
         <div className="absolute inset-0 z-30 flex items-end bg-black/30" onClick={() => setShowFilters(false)}>
-          <div className="w-full rounded-t-2xl bg-cream p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
+          <div className="flex max-h-[85vh] w-full flex-col rounded-t-2xl bg-cream shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 pb-3">
               <h2 className="text-lg font-semibold text-ink">Filters</h2>
-              <button
-                onClick={() => {
-                  setMinRating(null);
-                  setVerifiedOnly(false);
-                }}
-                className="text-sm font-medium text-brass"
-              >
+              <button onClick={resetFacets} className="text-sm font-medium text-brass">
                 Reset
               </button>
             </div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Rating</p>
-            <div className="mt-2 flex gap-2">
-              {[4, 3].map((r) => (
+
+            <div className={`flex-1 space-y-4 overflow-y-auto px-4 ${NO_SCROLLBAR}`}>
+              {/* Quick toggles */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Quick filters</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {FLAG_FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => toggleIn(setFlags, f.key)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                        flags.has(f.key) ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Price</p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {PRICE_OPTIONS.map((p) => (
+                    <button
+                      key={p.value}
+                      onClick={() => setPriceMax(priceMax === p.value ? null : p.value)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                        priceMax === p.value ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Discipline */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Discipline</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {DISCIPLINES.filter((o) => o.group !== "General").map((o) => (
+                    <button
+                      key={o.slug}
+                      onClick={() => toggleIn(setDisciplines, o.slug)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        disciplines.has(o.slug) ? "bg-brass/15 text-brass ring-1 ring-brass/40" : "bg-white text-ink/60 ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Board type */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Board type</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {BOARD_TYPES.map((o) => (
+                    <button
+                      key={o.slug}
+                      onClick={() => toggleIn(setBoardTypes, o.slug)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        boardTypes.has(o.slug) ? "bg-brass/15 text-brass ring-1 ring-brass/40" : "bg-white text-ink/60 ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Training */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Training</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {TRAINING_TYPES.map((o) => (
+                    <button
+                      key={o.slug}
+                      onClick={() => toggleIn(setTrainingTypes, o.slug)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        trainingTypes.has(o.slug) ? "bg-brass/15 text-brass ring-1 ring-brass/40" : "bg-white text-ink/60 ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Rating */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Rating</p>
+                <div className="mt-2 flex gap-2">
+                  {[4, 3].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setMinRating(minRating === r ? null : r)}
+                      className={`rounded-full px-3 py-1.5 text-sm font-medium ${
+                        minRating === r ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
+                      }`}
+                    >
+                      {r}★ &amp; up
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Trust */}
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink/55">Trust</p>
                 <button
-                  key={r}
-                  onClick={() => setMinRating(minRating === r ? null : r)}
-                  className={`rounded-full px-3 py-1.5 text-sm font-medium ${
-                    minRating === r ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
+                  onClick={() => setVerifiedOnly((v) => !v)}
+                  className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${
+                    verifiedOnly ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
                   }`}
                 >
-                  {r}★ &amp; up
+                  <span className={`h-3.5 w-3.5 rounded ${verifiedOnly ? "bg-brass" : "border border-leather/30"}`} />
+                  Verified only
                 </button>
-              ))}
+              </div>
             </div>
-            <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-ink/55">Trust</p>
-            <button
-              onClick={() => setVerifiedOnly((v) => !v)}
-              className={`mt-2 inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${
-                verifiedOnly ? "bg-pine text-cream" : "bg-white text-ink ring-1 ring-leather/15"
-              }`}
-            >
-              <span className={`h-3.5 w-3.5 rounded ${verifiedOnly ? "bg-brass" : "border border-leather/30"}`} />
-              Verified only
-            </button>
+
+            <div className="p-4 pt-3">
             <button
               onClick={() => setShowFilters(false)}
-              className="mt-5 w-full rounded-lg bg-pine py-3 font-semibold text-cream transition hover:bg-pine-light"
+              className="w-full rounded-lg bg-pine py-3 font-semibold text-cream transition hover:bg-pine-light"
             >
               See {filtered.length} stable{filtered.length === 1 ? "" : "s"}
             </button>
+            </div>
           </div>
         </div>
       )}

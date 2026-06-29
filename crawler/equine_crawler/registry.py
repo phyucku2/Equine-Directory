@@ -176,7 +176,21 @@ ADJACENT_QUERY_SPECS: list[tuple[str, str]] = [
 ]
 
 
-REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, OHORSE, FIXTURES]}
+# gosom (google-maps-scraper) local pipeline: ingest a JSON results file produced
+# by running gosom in Docker locally (no per-page 20 cap, $0/record). The actual
+# search areas/depth are controlled by gosom + scripts/gen_gmaps_queries.py; this
+# source only configures ingestion (county/state come from each row's custom id).
+GMAPS = Source(
+    key="gmaps-file",
+    name="Google Maps (gosom local file)",
+    urls=[],
+    css_schema={},
+    candidate_categories=["horse-boarding"],
+    kind="gmaps",
+)
+
+
+REGISTRY: dict[str, Source] = {s.key: s for s in [PLACES, GMAPS, OHORSE, FIXTURES]}
 
 
 def get_source(key: str) -> Source:

@@ -99,6 +99,9 @@ class NormalizedListing(BaseModel):
     rating_count: int | None = None
     hours: dict[str, Any] | None = None
     photos: list[dict[str, Any]] = Field(default_factory=list)
+    # Low-confidence facet pre-fill (facet key -> slugs) inferred from Google
+    # data. Applied only to empty columns the owner hasn't edited (see upsert).
+    inferred_facets: dict[str, list[str]] = Field(default_factory=dict)
 
     @property
     def is_published(self) -> bool:

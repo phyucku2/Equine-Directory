@@ -16,8 +16,60 @@ import { robots, isBusinessDetailIndexable } from "@/lib/seo/indexing";
 import { SaveHeartButton } from "@/components/saved/SaveHeartButton";
 import { InquiryForm } from "@/components/inquiry/InquiryForm";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
+import { facetLabel, PROGRAM_TYPES, type FacetKey } from "@/lib/facets";
 
 export const revalidate = 3600;
+
+// ── Structured facet display (owner-profile-facets.md §5) ─────────────────────
+// Read from the typed Business facet columns and render grouped sections, only
+// when non-empty. Slugs → labels via facetLabel().
+
+type PriceEntry = { from: number | null; to: number | null; included: string[] };
+type ProgramEntry = {
+  id: string;
+  type: string;
+  name: string;
+  season?: string;
+  price?: number | null;
+  ageRange?: string;
+  capacity?: number | null;
+};
+
+function money(n: number): string {
+  return `$${n.toLocaleString()}`;
+}
+
+// PROGRAM_TYPES is not in the FACETS registry (facetLabel can't resolve it), so
+// resolve program-type slugs → labels directly here.
+const PROGRAM_TYPE_LABELS: Record<string, string> = Object.fromEntries(
+  PROGRAM_TYPES.map((p) => [p.slug, p.label]),
+);
+
+// A section heading matching the page's existing `text-lg font-semibold text-pine`.
+function FacetSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="mt-6">
+      <h2 className="text-lg font-semibold text-pine">{title}</h2>
+      <div className="mt-3">{children}</div>
+    </section>
+  );
+}
+
+// Pine pill list used for the chip-style facet groups.
+function ChipList({ facet, slugs }: { facet: FacetKey; slugs: string[] }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {slugs.map((slug) => (
+        <span
+          key={slug}
+          className="rounded-full bg-pine/5 px-3 py-1 text-sm text-pine ring-1 ring-leather/15"
+        >
+          {facetLabel(facet, slug)}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 export async function generateStaticParams() {
   try {
@@ -84,6 +136,31 @@ export default async function BusinessPage({
   ];
 
   const amenities = business.amenities ?? [];
+
+  // Structured facets (typed columns; rendered as grouped sections below).
+  const disciplines = business.disciplines ?? [];
+  const boardTypes = business.boardTypes ?? [];
+  const trainingTypes = business.trainingTypes ?? [];
+  const trainingDisciplines = business.trainingDisciplines ?? [];
+  const lessonLevels = business.lessonLevels ?? [];
+  const securityFeatures = business.securityFeatures ?? [];
+  const policies = business.policies ?? [];
+  const pricing = (business.pricing ?? {}) as Record<string, PriceEntry>;
+  const programs = (Array.isArray(business.programs) ? business.programs : []) as ProgramEntry[];
+
+  // Board types that have a pricing entry drive the pricing table rows; any
+  // remaining selected board types render below the table as plain chips.
+  const pricedBoardTypes = boardTypes.filter((bt) => pricing[bt]);
+  const unpricedBoardTypes = boardTypes.filter((bt) => !pricing[bt]);
+  const numericFacts: { label: string; value: string }[] = [];
+  if (business.spotsAvailable != null)
+    numericFacts.push({ label: "Open spots", value: String(business.spotsAvailable) });
+  if (business.stallCount != null)
+    numericFacts.push({ label: "Stalls", value: String(business.stallCount) });
+  if (business.acreage != null)
+    numericFacts.push({ label: "Acreage", value: `${business.acreage} ac` });
+  const hasBoarding =
+    boardTypes.length > 0 || numericFacts.length > 0 || Object.keys(pricing).length > 0;
 
   // Google Places enrichment (stored as JSON by the crawler).
   const hours = business.hoursOfOperation as { weekdayDescriptions?: string[] } | null;
@@ -202,6 +279,156 @@ export default async function BusinessPage({
                 ))}
               </ul>
             </section>
+          )}
+
+          {/* Boarding & Pricing */}
+          {hasBoarding && (
+            <FacetSection title="Boarding &amp; pricing">
+              {numericFacts.length > 0 && (
+                <div className="mb-3 flex flex-wrap gap-4">
+                  {numericFacts.map((f) => (
+                    <div key={f.label} className="text-sm">
+                      <span className="font-semibold text-pine">{f.value}</span>{" "}
+                      <span className="text-ink/55">{f.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {pricedBoardTypes.length > 0 && (
+                <div className="overflow-hidden rounded-xl ring-1 ring-leather/15">
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {pricedBoardTypes.map((bt) => {
+                        const p = pricing[bt];
+                        const range =
+                          p.from != null && p.to != null && p.to !== p.from
+                            ? `${money(p.from)} – ${money(p.to)}`
+                            : p.from != null
+                              ? `from ${money(p.from)}`
+                              : p.to != null
+                                ? `up to ${money(p.to)}`
+                                : "Call for pricing";
+                        return (
+                          <tr key={bt} className="border-b border-leather/10 last:border-0">
+                            <td className="bg-white px-4 py-3 align-top">
+                              <p className="font-medium text-pine">
+                                {facetLabel("boardTypes", bt)}
+                              </p>
+                              {p.included.length > 0 && (
+                                <p className="mt-1 text-xs text-ink/55">
+                                  Includes: {p.included.join(", ")}
+                                </p>
+                              )}
+                            </td>
+                            <td className="whitespace-nowrap bg-white px-4 py-3 text-right align-top font-semibold text-ink">
+                              {range}
+                              {p.from != null && (
+                                <span className="text-xs font-normal text-ink/50">/mo</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {unpricedBoardTypes.length > 0 && (
+                <div className="mt-3">
+                  <ChipList facet="boardTypes" slugs={unpricedBoardTypes} />
+                </div>
+              )}
+            </FacetSection>
+          )}
+
+          {/* Disciplines */}
+          {disciplines.length > 0 && (
+            <FacetSection title="Disciplines">
+              <ChipList facet="disciplines" slugs={disciplines} />
+            </FacetSection>
+          )}
+
+          {/* Training & Lessons */}
+          {(trainingTypes.length > 0 ||
+            trainingDisciplines.length > 0 ||
+            lessonLevels.length > 0) && (
+            <FacetSection title="Training &amp; lessons">
+              <div className="space-y-3">
+                {trainingTypes.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink/55">
+                      Training
+                    </p>
+                    <ChipList facet="trainingTypes" slugs={trainingTypes} />
+                  </div>
+                )}
+                {trainingDisciplines.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink/55">
+                      Trains for
+                    </p>
+                    <ChipList facet="trainingDisciplines" slugs={trainingDisciplines} />
+                  </div>
+                )}
+                {lessonLevels.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink/55">
+                      Lessons
+                    </p>
+                    <ChipList facet="lessonLevels" slugs={lessonLevels} />
+                  </div>
+                )}
+              </div>
+            </FacetSection>
+          )}
+
+          {/* Programs & Camps */}
+          {programs.length > 0 && (
+            <FacetSection title="Programs &amp; camps">
+              <ul className="grid gap-3 sm:grid-cols-2">
+                {programs.map((p) => (
+                  <li
+                    key={p.id}
+                    className="rounded-xl bg-white p-4 ring-1 ring-leather/15"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-medium text-pine">{p.name}</p>
+                      {p.price != null && (
+                        <span className="shrink-0 text-sm font-semibold text-ink">
+                          {money(p.price)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-brass">
+                      {PROGRAM_TYPE_LABELS[p.type] ?? p.type}
+                    </p>
+                    <p className="mt-1 text-xs text-ink/55">
+                      {[
+                        p.season,
+                        p.ageRange ? `Ages ${p.ageRange}` : null,
+                        p.capacity != null ? `${p.capacity} spots` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </FacetSection>
+          )}
+
+          {/* Security & Safety */}
+          {securityFeatures.length > 0 && (
+            <FacetSection title="Security &amp; safety">
+              <ChipList facet="securityFeatures" slugs={securityFeatures} />
+            </FacetSection>
+          )}
+
+          {/* Policies */}
+          {policies.length > 0 && (
+            <FacetSection title="Policies">
+              <ChipList facet="policies" slugs={policies} />
+            </FacetSection>
           )}
 
           {/* Reviews */}

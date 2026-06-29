@@ -251,10 +251,117 @@ async def _crawl_live(source: Source, limit: int | None) -> list[RawListing]:
     return listings
 
 
+def _to_float(v) -> float | None:
+    try:
+        return float(v) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _to_int(v) -> int | None:
+    try:
+        return int(float(v)) if v not in (None, "") else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_gmaps_rows(text: str) -> list[dict]:
+    """gosom -json writes either a JSON array or newline-delimited JSON."""
+    text = text.strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+        return data if isinstance(data, list) else [data]
+    except json.JSONDecodeError:
+        rows = []
+        for line in text.splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    rows.append(json.loads(line))
+                except json.JSONDecodeError:
+                    continue
+        return rows
+
+
+def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
+    """Ingest a gosom (google-maps-scraper) JSON results file produced locally.
+
+    County/state come from the per-query custom id we embed as `#!#County|ST`
+    (see scripts/gen_gmaps_queries.py) and gosom echoes back in `input_id` — the
+    geocoder needs them to place the city under the right county.
+    """
+    path = os.environ.get("GMAPS_FILE")
+    if not path:
+        raise RuntimeError("GMAPS_FILE not set (path to gosom results .json)")
+    rows = _parse_gmaps_rows(Path(path).read_text())
+    print(f"[gmaps] loaded {len(rows)} rows from {path}", flush=True)
+
+    by_id: dict[str, RawListing] = {}
+    order: list[str] = []
+    for r in rows:
+        name = r.get("title") or r.get("name")
+        if not name:
+            continue
+        status = (r.get("status") or "").lower()
+        if "permanently closed" in status or status == "closed_permanently":
+            continue
+        cid = str(r.get("cid") or r.get("data_id") or r.get("place_id") or "").strip()
+        ext = f"google:{cid}" if cid else None
+        key = ext or f"{name}|{r.get('address','')}"
+        if key in by_id:
+            continue
+
+        # County|ST from the embedded custom id (falls back to None -> geocoder
+        # then tries state-less seeded-city match).
+        county = state = None
+        tag = r.get("input_id") or r.get("id") or ""
+        if isinstance(tag, str) and "|" in tag:
+            c, _, s = tag.rpartition("|")
+            county, state = (c.strip() or None), (s.strip().upper() or None)
+
+        lat = _to_float(r.get("latitude"))
+        lng = _to_float(r.get("longitude") if r.get("longitude") is not None else r.get("longtitude"))
+        gps = r.get("gps_coordinates") or {}
+        if lat is None:
+            lat = _to_float(gps.get("latitude"))
+        if lng is None:
+            lng = _to_float(gps.get("longitude"))
+        cats = r.get("categories") or ([r["category"]] if r.get("category") else [])
+
+        by_id[key] = RawListing(
+            name=name,
+            address=r.get("address") or r.get("complete_address"),
+            county=county,
+            state=state,
+            phone=r.get("phone"),
+            website=r.get("website") or r.get("site"),
+            description=r.get("description") or None,
+            latitude=lat,
+            longitude=lng,
+            candidate_categories=list(source.candidate_categories),
+            source_url=r.get("link"),
+            external_id=ext,
+            primary_type=(r.get("category") or (cats[0] if cats else None)),
+            types=cats,
+            rating=_to_float(r.get("review_rating") if r.get("review_rating") is not None else r.get("rating")),
+            rating_count=_to_int(r.get("review_count") if r.get("review_count") is not None else r.get("reviews")),
+            business_status=r.get("status"),
+            hours=r.get("open_hours") if isinstance(r.get("open_hours"), dict) else None,
+        )
+        order.append(key)
+
+    listings = [by_id[k] for k in order]
+    return listings[:limit] if limit else listings
+
+
 async def extract(source: Source, limit: int | None = None) -> list[RawListing]:
     if source.key == "fixtures":
         rows = _load_fixtures(source)
         return rows[:limit] if limit else rows
+    if source.kind == "gmaps":
+        return _load_gmaps_file(source, limit)
     if source.kind == "places":
         return _fetch_places(source, limit)
     return await _crawl_live(source, limit)

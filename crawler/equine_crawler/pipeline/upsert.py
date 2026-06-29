@@ -138,6 +138,43 @@ def _upsert_categories(
             )
 
 
+# Facet key -> DB column. Only these crawler-inferable columns are pre-filled;
+# every other facet (amenities, pricing, etc.) is owner-only.
+_FACET_COLUMNS: dict[str, str] = {
+    "disciplines": "disciplines",
+    "boardTypes": "boardTypes",
+    "trainingTypes": "trainingTypes",
+}
+
+
+def _prefill_facets(conn: psycopg.Connection, business_id: str, n: NormalizedListing) -> None:
+    """Seed low-confidence facet columns from inferred Google data.
+
+    Writes a facet column ONLY when (a) it is currently empty for this business
+    AND (b) the facet key is not present in "ownerEditedFacets". Never clears a
+    column, never overwrites a non-empty one, and never touches
+    "ownerEditedFacets" — so it is safe and idempotent on re-crawl.
+    """
+    if not n.inferred_facets:
+        return
+    with conn.cursor() as cur:
+        for key, slugs in n.inferred_facets.items():
+            col = _FACET_COLUMNS.get(key)
+            if not col or not slugs:
+                continue
+            # SQL guards make this atomic w.r.t. owner edits: the row is updated
+            # only while the column is still empty and the key is unclaimed.
+            cur.execute(
+                f"""
+                UPDATE "Business" SET "{col}"=%s, "updatedAt"=now()
+                WHERE id=%s
+                  AND ("{col}" IS NULL OR cardinality("{col}")=0)
+                  AND NOT (%s = ANY("ownerEditedFacets"))
+                """,
+                (list(slugs), business_id, key),
+            )
+
+
 def _recompute_published(conn: psycopg.Connection, business_id: str) -> None:
     with conn.cursor() as cur:
         cur.execute(
@@ -168,6 +205,7 @@ def upsert_listing(
     business_id = _upsert_business(conn, n, existing_id)
     _upsert_categories(conn, business_id, n, cat_ids)
     _upsert_images(conn, business_id, n)
+    _prefill_facets(conn, business_id, n)
     _recompute_published(conn, business_id)
     _audit(conn, business_id, "BUSINESS_CREATED" if action == "created" else "BUSINESS_UPDATED")
     return business_id, action

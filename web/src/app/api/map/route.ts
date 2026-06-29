@@ -24,6 +24,18 @@ export async function GET() {
       isFeatured: true,
       verificationBadge: true,
       amenities: true,
+      // Filterable facet columns (owner-profile-facets.md §6) — exposed in the
+      // GeoJSON feature properties so the search/map filter stage can filter
+      // client-side without a round-trip. priceFrom prefers the owner-derived
+      // column (min over pricing[].from) but falls back to attributes.priceFrom.
+      disciplines: true,
+      boardTypes: true,
+      trainingTypes: true,
+      securityFeatures: true,
+      policies: true,
+      programs: true,
+      priceFrom: true,
+      spotsAvailable: true,
       attributes: true,
       location: { select: { name: true } },
       categories: {
@@ -57,8 +69,31 @@ export async function GET() {
         // V1: every listing is a boarding facility -> "Stalls Available" by
         // default; owners can override the offering later (Camp/Lessons/…).
         offering: typeof attrs.offering === "string" ? attrs.offering : "Stalls Available",
-        priceFrom: typeof attrs.priceFrom === "number" ? attrs.priceFrom : null,
+        // Owner-derived priceFrom wins; legacy attributes.priceFrom is the fallback.
+        priceFrom:
+          b.priceFrom != null
+            ? b.priceFrom
+            : typeof attrs.priceFrom === "number"
+              ? attrs.priceFrom
+              : null,
         amenities: b.amenities ?? [],
+        // Filterable facet arrays + live-openings count for the filters stage.
+        disciplines: b.disciplines ?? [],
+        boardTypes: b.boardTypes ?? [],
+        trainingTypes: b.trainingTypes ?? [],
+        securityFeatures: b.securityFeatures ?? [],
+        policies: b.policies ?? [],
+        // Distinct program types (programs[].type) for the "summer camp" filter.
+        programTypes: Array.isArray(b.programs)
+          ? [
+              ...new Set(
+                (b.programs as { type?: unknown }[])
+                  .map((p) => (typeof p?.type === "string" ? p.type : null))
+                  .filter((t): t is string => t !== null),
+              ),
+            ]
+          : [],
+        spotsAvailable: b.spotsAvailable ?? null,
       },
     };
   });

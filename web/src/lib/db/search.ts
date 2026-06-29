@@ -27,6 +27,20 @@ export interface SearchParams {
   minRating?: number;
   verifiedOnly?: boolean;
   page?: number;
+  // Zillow-style facet filters (owner-profile-facets.md §6). All array facets
+  // use Postgres array containment (hasSome) on the GIN-indexed columns; the
+  // caller is expected to pass already-validated slugs (sanitizeFacet).
+  disciplines?: string[];
+  boardTypes?: string[];
+  trainingTypes?: string[];
+  securityFeatures?: string[];
+  policies?: string[];
+  amenities?: string[];
+  // programs[].type values (e.g. "summer-camp"). Matched against the `programs`
+  // JSON column via array_contains on a partial { type } object.
+  programTypes?: string[];
+  priceMax?: number; // priceFrom <= priceMax
+  availableNow?: boolean; // spotsAvailable > 0
 }
 
 const PAGE_SIZE = 24;
@@ -90,6 +104,30 @@ function buildWhere(p: SearchParams): Prisma.BusinessWhereInput {
     and.push({ location: { parent: { slug: p.countySlug, type: "COUNTY" } } });
   if (p.minRating) and.push({ rating: { gte: new Prisma.Decimal(p.minRating) } });
   if (p.verifiedOnly) and.push({ isVerified: true });
+
+  // Array-containment facets on the GIN-indexed String[] columns. `hasSome`
+  // means "matches any selected slug" (OR within a facet); separate facets AND
+  // together — standard Zillow-style behavior.
+  if (p.disciplines?.length) and.push({ disciplines: { hasSome: p.disciplines } });
+  if (p.boardTypes?.length) and.push({ boardTypes: { hasSome: p.boardTypes } });
+  if (p.trainingTypes?.length) and.push({ trainingTypes: { hasSome: p.trainingTypes } });
+  if (p.securityFeatures?.length) and.push({ securityFeatures: { hasSome: p.securityFeatures } });
+  if (p.policies?.length) and.push({ policies: { hasSome: p.policies } });
+  if (p.amenities?.length) and.push({ amenities: { hasSome: p.amenities } });
+
+  // Numeric range / availability facets.
+  if (p.priceMax != null) and.push({ priceFrom: { lte: p.priceMax } });
+  if (p.availableNow) and.push({ spotsAvailable: { gt: 0 } });
+
+  // Program types live in the `programs` JSON column ([{ type, ... }]). Match
+  // rows whose array contains an entry with the selected type (OR across types).
+  if (p.programTypes?.length) {
+    and.push({
+      OR: p.programTypes.map((type) => ({
+        programs: { array_contains: [{ type }] },
+      })),
+    });
+  }
 
   if (and.length) where.AND = and;
   return where;

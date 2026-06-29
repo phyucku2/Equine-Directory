@@ -29,7 +29,13 @@ export const STABLES_BUSINESS_WHERE: Prisma.BusinessWhereInput = {
   categories: STABLES_CATEGORY_SOME,
 };
 
-// Full listing shape used by the detail page.
+// Full listing shape used by the detail page. This is a Prisma `include`, so all
+// scalar Business columns are returned automatically — including the structured
+// facet columns added in owner-profile-facets.md: disciplines, boardTypes,
+// trainingTypes, trainingDisciplines, lessonLevels, securityFeatures, policies,
+// priceFrom, spotsAvailable, stallCount, acreage, pricing, programs, careDetails.
+// (No `select` here, so we don't need to enumerate them; BusinessDetail exposes
+// them and the public detail page renders grouped facet sections from them.)
 export const businessDetailInclude = {
   location: { include: { parent: { include: { parent: true } } } },
   categories: {

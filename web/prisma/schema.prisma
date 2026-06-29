@@ -142,9 +142,30 @@ model Business {
   deliveryModel    DeliveryModel @default(IN_PERSON)
   serviceRadiusMi  Int?
   yearsInOperation Int?
-  attributes       Json? // category-specific fields (boardingTypes, disciplines, credentials, ...)
+  attributes       Json? // misc category-specific fields (offering, googleMapsUri, ...)
   socialLinks      Json?
   paymentMethods   String[]      @default([])
+
+  // ── Owner profile facets (see specs/owner-profile-facets.md) ──
+  // Filterable controlled-vocab arrays (GIN-indexed below).
+  disciplines         String[] @default([]) // disciplines accepted for boarding
+  boardTypes          String[] @default([]) // full, partial, pasture, self-care, stall, ...
+  trainingTypes       String[] @default([]) // full-training, training-rides, colt-starting, ...
+  trainingDisciplines String[] @default([]) // disciplines the barn trains
+  lessonLevels        String[] @default([]) // beginner, intermediate, advanced, lesson-horses, ...
+  securityFeatures    String[] @default([]) // security-cameras, gated-entry, on-site-manager, ...
+  policies            String[] @default([]) // open-barn, closed-barn, mares-only, ada-accessible, ...
+  // Numeric range facets
+  priceFrom           Int? // derived min monthly board price (fast sort/filter)
+  spotsAvailable      Int? // live boarding openings
+  stallCount          Int?
+  acreage             Float?
+  // Rich display detail (not directly filtered)
+  pricing             Json? // { full: {from,to,period,included[]}, pasture: {...}, ... }
+  programs            Json? // [{ id, type, name, discipline?, season, price?, ageRange?, capacity? }]
+  careDetails         Json? // { feedingsPerDay, hayType, turnoutHours, supplements, ... }
+  // Facet keys the owner has explicitly set — the crawler must never overwrite these
+  ownerEditedFacets   String[] @default([])
 
   // Derived trust / ratings
   rating            Decimal?          @db.Decimal(3, 2)
@@ -185,6 +206,14 @@ model Business {
   @@index([latitude, longitude])
   @@index([isFeatured, rating])
   @@index([isPublished])
+  // Facet filters (Zillow-style) — GIN on controlled-vocab arrays
+  @@index([disciplines], type: Gin)
+  @@index([boardTypes], type: Gin)
+  @@index([trainingTypes], type: Gin)
+  @@index([securityFeatures], type: Gin)
+  @@index([policies], type: Gin)
+  @@index([amenities], type: Gin)
+  @@index([priceFrom])
 }
 
 model Location {
@@ -283,24 +312,24 @@ model Review {
 }
 
 model ClaimRequest {
-  id                 String      @id @default(cuid())
+  id                 String         @id @default(cuid())
   businessId         String
-  business           Business    @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  business           Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
   // userId nullable so the current anonymous email-token path still compiles.
   userId             String?
-  user               User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-  ownerName          String      @db.VarChar(255)
-  ownerEmail         String      @db.VarChar(255)
-  ownerPhone         String?     @db.VarChar(32)
-  status             ClaimStatus @default(PENDING)
+  user               User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  ownerName          String         @db.VarChar(255)
+  ownerEmail         String         @db.VarChar(255)
+  ownerPhone         String?        @db.VarChar(32)
+  status             ClaimStatus    @default(PENDING)
   verificationMethod String? // "email" | "phone" | "registration"
-  verificationToken  String?     @unique
+  verificationToken  String?        @unique
   verificationSentAt DateTime?
   tokenExpiresAt     DateTime?
   verifiedAt         DateTime?
   ownership          BusinessOwner?
-  createdAt          DateTime    @default(now())
-  updatedAt          DateTime    @updatedAt
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
 
   @@index([businessId])
   @@index([status])
@@ -385,10 +414,10 @@ model User {
   role          UserRole  @default(USER)
 
   // consumer profile + notification prefs
-  phone              String?  @db.VarChar(32)
-  city               String?  @db.VarChar(255)
-  emailAlertsEnabled Boolean  @default(true)
-  inquiryCopyToSelf  Boolean  @default(true)
+  phone              String? @db.VarChar(32)
+  city               String? @db.VarChar(255)
+  emailAlertsEnabled Boolean @default(true)
+  inquiryCopyToSelf  Boolean @default(true)
 
   accounts      Account[]
   sessions      Session[]
