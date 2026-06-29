@@ -20,6 +20,7 @@ import urllib.request
 from dotenv import load_dotenv
 
 from equine_crawler.db import connect, gen_id
+from equine_crawler.facets import infer_facets
 from equine_crawler.grading import grade_listing, llm_available
 from equine_crawler.pipeline.dedup import find_existing
 from equine_crawler.pipeline.extract import extract
@@ -142,6 +143,9 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     graded = grade_listing(n.candidate_categories, n.name, n.description or "", use_llm=use_llm)
                 slug = slugify(n.name, n.city or "")
                 attributes = {"googleMapsUri": n.google_maps_uri} if n.google_maps_uri else {}
+                # Low-confidence facet seeds; upsert applies them only to empty,
+                # non-owner-edited columns (see pipeline/upsert._prefill_facets).
+                inferred_facets = infer_facets(n.name, n.description, n.types)
                 normalized = NormalizedListing(
                     name=n.name, slug=slug,
                     address=n.address or ", ".join(p for p in (n.city, n.state) if p) or "US",
@@ -149,7 +153,7 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     latitude=lat, longitude=lng, location_id=location_id,
                     graded_categories=graded, source_url=n.source_url, external_id=n.external_id,
                     attributes=attributes, rating=n.rating, rating_count=n.rating_count,
-                    hours=n.hours, photos=n.photos,
+                    hours=n.hours, photos=n.photos, inferred_facets=inferred_facets,
                 )
 
                 existing = find_existing(conn, slug, n.name, n.phone, n.website)

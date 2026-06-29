@@ -11,6 +11,15 @@ export interface SaveSearchFilters {
   priceFrom?: number;
   rating?: number;
   verified?: boolean;
+  // Zillow-style facet filters (owner-profile-facets.md §6).
+  disciplines?: string[];
+  boardTypes?: string[];
+  trainingTypes?: string[];
+  securityFeatures?: string[];
+  policies?: string[];
+  programTypes?: string[];
+  priceMax?: number;
+  available?: boolean;
 }
 
 type Status = "idle" | "saving" | "saved" | "error" | "limit";

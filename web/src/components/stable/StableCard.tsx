@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SaveHeartButton } from "@/components/saved/SaveHeartButton";
+import { facetLabel } from "@/lib/facets";
 
 // Shared stable listing card. Extracted from MapView so owner/account SERVER
 // components can reuse it (the original was a non-exported local inside the
@@ -21,6 +22,15 @@ export type StableMarker = {
   offering: string;
   priceFrom: number | null;
   amenities: string[];
+  // Structured facets (owner-profile-facets.md). Optional so callers that build a
+  // StableMarker without them (saved-stable grid, legacy map markers) still type.
+  disciplines?: string[];
+  boardTypes?: string[];
+  securityFeatures?: string[];
+  trainingTypes?: string[];
+  policies?: string[];
+  programTypes?: string[];
+  spotsAvailable?: number | null;
   lng: number;
   lat: number;
 };
@@ -49,6 +59,12 @@ export function StableCard({
   /** Whether the current user has favorited this stable (heart filled). */
   saved?: boolean;
 }) {
+  // Compact facet badges: top discipline, top board type, and a cameras flag.
+  const topDiscipline = s.disciplines?.[0];
+  const topBoardType = s.boardTypes?.[0];
+  const hasCameras = s.securityFeatures?.includes("security-cameras") ?? false;
+  const hasBadges = Boolean(topDiscipline || topBoardType || hasCameras);
+
   return (
     <div
       ref={innerRef}
@@ -93,6 +109,25 @@ export function StableCard({
           <div className="mt-1">
             <Stars rating={s.rating} count={s.reviewCount} />
           </div>
+          {hasBadges && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {topDiscipline && (
+                <span className="rounded-full bg-brass/10 px-2 py-0.5 text-[11px] font-medium text-leather">
+                  {facetLabel("disciplines", topDiscipline)}
+                </span>
+              )}
+              {topBoardType && (
+                <span className="rounded-full bg-pine/10 px-2 py-0.5 text-[11px] font-medium text-pine">
+                  {facetLabel("boardTypes", topBoardType)}
+                </span>
+              )}
+              {hasCameras && (
+                <span className="rounded-full bg-pine/10 px-2 py-0.5 text-[11px] font-medium text-pine">
+                  🎥 Cameras
+                </span>
+              )}
+            </div>
+          )}
           {s.amenities.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-1">
               {s.amenities.slice(0, 4).map((a) => (
