@@ -201,6 +201,9 @@ model Business {
   events     Event[]
   spotlights Spotlight[]
 
+  // Crowdsourced moderation (see specs/post-launch-fixes.md §4)
+  reports Report[]
+
   // Crawler / audit
   dataSourceUrl    String?
   externalSourceId String? // dedup key from source
@@ -672,4 +675,24 @@ model Spotlight {
 
   @@index([locationId, status])
   @@index([businessId])
+}
+
+// Crowdsourced "Not a Stable or Barn" reports (see specs/post-launch-fixes.md §4).
+// A public visitor flags a listing that isn't a boarding facility; once enough
+// independent reports accumulate the business is auto-hidden (isPublished=false)
+// and routed to /admin/reports for triage. Reporter identity is stored as plain
+// columns (no FK) since reporters are usually anonymous.
+model Report {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  reason     String   @default("not_a_stable") @db.VarChar(64) // not_a_stable | closed | duplicate | other
+  detail     String?  @db.VarChar(512)
+  reporterIp String?  @db.VarChar(64)
+  reporterId String? // optional logged-in user id (no FK; reporters are usually anonymous)
+  status     String   @default("open") // open | dismissed | actioned
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, status])
+  @@index([status])
 }

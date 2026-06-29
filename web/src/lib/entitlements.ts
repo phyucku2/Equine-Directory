@@ -39,6 +39,13 @@ export type Entitlements = {
   canCollectReviews: boolean;
   /** Owner may edit rich facets (disciplines/board/pricing/amenities/…). VERIFIED+. */
   canEditFacets: boolean;
+  /**
+   * The public listing may expose an outbound link to the barn's own website.
+   * VERIFIED+ only (implies claimed). FREE/unclaimed barns show a "Claim this
+   * listing" CTA instead — no free outbound link (monetization + SEO; see
+   * specs/post-launch-fixes.md §3).
+   */
+  canShowWebsiteLink: boolean;
   /** Max trainer profiles. TEAM: TRAINER_SEATS_INCLUDED + subscription.trainerSeats. */
   maxTrainers: number;
   /** Owner may publish events/shows/clinics/camps. EVENTS. */
@@ -68,6 +75,7 @@ const FREE_FLAGS: TierFlags = {
   stallsBadge: false,
   canCollectReviews: false,
   canEditFacets: false,
+  canShowWebsiteLink: false,
   canEvents: false,
   baseTrainers: 0,
 };
@@ -78,6 +86,7 @@ const VERIFIED_FLAGS: TierFlags = {
   stallsBadge: true,
   canCollectReviews: true,
   canEditFacets: true,
+  canShowWebsiteLink: true,
   canEvents: false,
   baseTrainers: 0,
 };
@@ -167,6 +176,7 @@ export function getEntitlements(business: BusinessLike, now: Date = new Date()):
     stallsBadge: flags.stallsBadge,
     canCollectReviews: flags.canCollectReviews,
     canEditFacets: flags.canEditFacets,
+    canShowWebsiteLink: flags.canShowWebsiteLink,
     maxTrainers,
     canEvents: flags.canEvents,
     spotlightActive: spot !== null,
