@@ -46,6 +46,18 @@ export const NON_BARN_NAME_KEYWORDS = [
   "mini golf",
   "water park",
   "trampoline park",
+  // Agritourism / farm-animal attractions that aren't boarding barns. Note this
+  // is name-only — a generically-named farm (e.g. "Wildflower Farm") won't match;
+  // those are handled by crowdsourced reports (see hasNoOpenReport below).
+  "goat farm",
+  "dairy",
+  "creamery",
+  "alpaca",
+  "llama",
+  "u-pick",
+  "u pick",
+  "sunflower field",
+  "petting",
 ] as const;
 
 // Top-level NOT with an array is a NOR: a business matches only when its name
@@ -244,9 +256,18 @@ function featuredOrdering(): Prisma.BusinessOrderByWithRelationInput[] {
   ];
 }
 
+// Premium placement is held to a higher bar than the rest of the directory: a
+// single open "not a stable" report drops a listing from Featured immediately
+// (the directory-wide auto-hide still needs the full threshold). This makes the
+// report button a one-tap fix for a mis-categorized farm headlining the homepage
+// — generically-named non-barns can't be caught by name alone.
+const HAS_NO_OPEN_REPORT: Prisma.BusinessWhereInput = {
+  reports: { none: { status: "open" } },
+};
+
 export async function getFeatured(take = 6): Promise<BusinessCard[]> {
   return prisma.business.findMany({
-    where: STABLES_BUSINESS_WHERE,
+    where: { ...STABLES_BUSINESS_WHERE, ...HAS_NO_OPEN_REPORT },
     include: businessCardInclude,
     orderBy: featuredOrdering(),
     take,
