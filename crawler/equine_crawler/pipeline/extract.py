@@ -192,7 +192,7 @@ def _fetch_places(source: Source, limit: int | None) -> list[RawListing]:
 def _load_fixtures(source: Source) -> list[RawListing]:
     listings: list[RawListing] = []
     for path in sorted(FIXTURES_DIR.glob("*.json")):
-        rows = json.loads(path.read_text())
+        rows = json.loads(path.read_text(encoding="utf-8"))
         for row in rows:
             row.setdefault("candidate_categories", source.candidate_categories)
             listings.append(RawListing(**row))
@@ -295,7 +295,7 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
     path = os.environ.get("GMAPS_FILE")
     if not path:
         raise RuntimeError("GMAPS_FILE not set (path to gosom results .json)")
-    rows = _parse_gmaps_rows(Path(path).read_text())
+    rows = _parse_gmaps_rows(Path(path).read_text(encoding="utf-8"))
     print(f"[gmaps] loaded {len(rows)} rows from {path}", flush=True)
 
     by_id: dict[str, RawListing] = {}
