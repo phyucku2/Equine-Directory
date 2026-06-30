@@ -265,6 +265,28 @@ def _to_int(v) -> int | None:
         return None
 
 
+def _gmaps_address(r: dict) -> str:
+    """Coerce a gosom row's address to a string.
+
+    gosom emits a plain `address` string for most places, but for some it leaves
+    `address` blank and only fills the structured `complete_address` object
+    ({borough, street, city, postal_code, state, country}). RawListing.address is
+    a str, so build one from the parts when the flat field is empty.
+    """
+    a = r.get("address")
+    if isinstance(a, str) and a.strip():
+        return a.strip()
+    ca = a if isinstance(a, dict) else r.get("complete_address")
+    if isinstance(ca, dict):
+        parts = [ca.get("street"), ca.get("city"), ca.get("state"), ca.get("postal_code")]
+        joined = ", ".join(str(p).strip() for p in parts if p and str(p).strip())
+        if joined:
+            return joined
+    if isinstance(ca, str) and ca.strip():
+        return ca.strip()
+    return ""
+
+
 def _parse_gmaps_rows(text: str) -> list[dict]:
     """gosom -json writes either a JSON array or newline-delimited JSON."""
     text = text.strip()
@@ -309,7 +331,8 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
             continue
         cid = str(r.get("cid") or r.get("data_id") or r.get("place_id") or "").strip()
         ext = f"google:{cid}" if cid else None
-        key = ext or f"{name}|{r.get('address','')}"
+        address = _gmaps_address(r)
+        key = ext or f"{name}|{address}"
         if key in by_id:
             continue
 
@@ -332,7 +355,7 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
 
         by_id[key] = RawListing(
             name=name,
-            address=r.get("address") or r.get("complete_address"),
+            address=address,
             county=county,
             state=state,
             phone=r.get("phone"),
