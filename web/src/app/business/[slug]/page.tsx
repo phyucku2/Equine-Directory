@@ -22,6 +22,7 @@ import { readStallsBadge } from "@/lib/db/owner";
 import { getListingTrainers } from "@/lib/db/trainers";
 import { getUpcomingEventsForBusiness } from "@/lib/db/events";
 import { BusinessLogo } from "@/components/business/BusinessLogo";
+import { ReportButton } from "@/components/business/ReportButton";
 import { TrainerCard } from "@/components/business/TrainerCard";
 import { EventListItem } from "@/components/events/EventListItem";
 import { trainersUrl } from "@/lib/urls";
@@ -141,7 +142,14 @@ export default async function BusinessPage({
   const county = business.location.parent;
   const state = county?.parent;
   const phoneHref = telHref(business.phone);
-  const site = ensureHttp(business.website);
+  // Outbound website link is a paid/claimed perk (VERIFIED+): no free outbound
+  // links for unclaimed/FREE barns — keeps link equity on the directory and is a
+  // clean upsell hook (post-launch-fixes.md §3). `site` stays null when gated, so
+  // every "Visit website" surface below disappears for non-entitled barns.
+  const site = ent.canShowWebsiteLink ? ensureHttp(business.website) : null;
+  // Barn has a website on file but isn't entitled to expose it → show a claim
+  // upsell where the link would have been.
+  const websiteGated = !ent.canShowWebsiteLink && Boolean(business.website);
   const mapsQuery = `${business.latitude},${business.longitude}`;
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${mapsQuery}`;
   const directionsHref = `https://www.google.com/maps/dir/?api=1&destination=${mapsQuery}`;
@@ -528,13 +536,19 @@ export default async function BusinessPage({
               Location
             </h2>
             <p className="mt-2 text-ink/80">{business.address}</p>
-            {site && (
+            {site ? (
               <p className="mt-2 text-sm">
                 <a href={site} target="_blank" rel="noopener noreferrer nofollow" className="text-brass hover:underline">
                   {displayHostname(business.website)}
                 </a>
               </p>
-            )}
+            ) : websiteGated ? (
+              <p className="mt-2 text-sm">
+                <Link href={`/business/${business.slug}/claim`} className="text-brass hover:underline">
+                  Claim this listing to add your website →
+                </Link>
+              </p>
+            ) : null}
             <a
               href={mapHref}
               target="_blank"
@@ -580,6 +594,9 @@ export default async function BusinessPage({
             <Link href={`/business/${business.slug}/claim`} className="mt-2 inline-block font-medium text-brass hover:underline">
               Claim this stable →
             </Link>
+            <div className="mt-3 border-t border-leather/15 pt-3">
+              <ReportButton businessId={business.id} />
+            </div>
           </div>
         </aside>
       </div>

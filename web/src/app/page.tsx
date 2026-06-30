@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFeatured } from "@/lib/db/business";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { NearbyStables } from "@/components/home/NearbyStables";
+import { NearbyCities } from "@/components/home/NearbyCities";
 import { cityUrl } from "@/lib/urls";
 
 export const revalidate = 3600;
@@ -89,7 +90,11 @@ export default async function HomePage() {
         {/* Stables near you (geo-aware; hides itself when nothing is close) */}
         <NearbyStables />
 
-        {/* Top regions */}
+        {/* Cities near you (geo-aware; hides itself when geo is unknown). The
+            static hub list below stays crawlable as the SEO fallback. */}
+        <NearbyCities />
+
+        {/* Top regions (static, crawlable fallback hub list) */}
         <section className="py-14">
           <SectionHeading eyebrow="Where to look" title="Florida horse country" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

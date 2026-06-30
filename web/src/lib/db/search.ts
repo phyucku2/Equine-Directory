@@ -4,6 +4,7 @@ import {
   businessCardInclude,
   STABLES_CATEGORY_SOME,
   STABLES_SLUG,
+  NOT_NON_BARN_NAME,
   type BusinessCard,
   type Paginated,
 } from "@/lib/db/business";
@@ -88,6 +89,9 @@ function buildWhere(p: SearchParams): Prisma.BusinessWhereInput {
 
   // V1: every result must be a stable/barn (boarding facility).
   and.push({ categories: STABLES_CATEGORY_SOME });
+  // Exclude non-barn attractions (goat yoga / petting zoo / …) by name — same
+  // chokepoint as STABLES_BUSINESS_WHERE (post-launch-fixes.md §2).
+  and.push(NOT_NON_BARN_NAME);
 
   if (p.categorySlug) {
     and.push({

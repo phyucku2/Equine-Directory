@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PUBLIC_CATEGORY_WHERE, STABLES_SLUG } from "@/lib/db/business";
+import { PUBLIC_CATEGORY_WHERE, STABLES_SLUG, NOT_NON_BARN_NAME } from "@/lib/db/business";
 import { getEntitlements } from "@/lib/entitlements";
 
 export const revalidate = 300;
@@ -26,6 +26,7 @@ export async function GET() {
     where: {
       isPublished: true,
       categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } } },
+      ...NOT_NON_BARN_NAME,
     },
     select: {
       id: true,

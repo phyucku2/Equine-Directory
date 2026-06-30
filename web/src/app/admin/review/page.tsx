@@ -35,6 +35,9 @@ export default async function AdminReviewPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-stone-900">Moderation queue</h1>
         <div className="flex items-center gap-3">
+          <Link href="/admin/reports" className="text-sm text-blue-600 hover:underline">
+            Reported listings →
+          </Link>
           <Link href="/admin/grants" className="text-sm text-blue-600 hover:underline">
             Manual grants →
           </Link>

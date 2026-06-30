@@ -28,7 +28,7 @@ export async function moderationQueueCount(): Promise<number> {
 
 // Recompute whether a business should be publicly listed: it must have at least
 // one published (auto-approved or human-approved) category assignment.
-async function recomputePublished(businessId: string) {
+export async function recomputePublished(businessId: string) {
   const publishable = await prisma.businessCategory.count({
     where: { businessId, reviewStatus: { in: ["AUTO_APPROVED", "APPROVED"] } },
   });

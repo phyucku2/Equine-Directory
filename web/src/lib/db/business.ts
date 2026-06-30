@@ -24,9 +24,42 @@ export const STABLES_CATEGORY_SOME: Prisma.BusinessCategoryListRelationFilter = 
   some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } },
 };
 
+// Names that signal a NON-barn attraction that occasionally gets a stray
+// horse-boarding category during the crawl (e.g. "Goat Yoga At Alaska Farms" —
+// 1,649 reviews — surfaced as a featured "stable"). These are agritourism /
+// event venues, not boarding facilities. Kept tight + specific to clearly
+// non-equine activities to avoid excluding legitimately-named barns. Mirrors the
+// crawler's _is_nonbarn_text() intent (crawler/run.py) on the read side, so a
+// record that slipped past ingestion still never shows publicly. See
+// specs/post-launch-fixes.md §2.
+export const NON_BARN_NAME_KEYWORDS = [
+  "goat yoga",
+  "petting zoo",
+  "petting farm",
+  "farm tour",
+  "pumpkin patch",
+  "corn maze",
+  "wedding venue",
+  "axe throwing",
+  "go kart",
+  "go-kart",
+  "mini golf",
+  "water park",
+  "trampoline park",
+] as const;
+
+// Top-level NOT with an array is a NOR: a business matches only when its name
+// contains NONE of the non-barn keywords (case-insensitive).
+export const NOT_NON_BARN_NAME: Prisma.BusinessWhereInput = {
+  NOT: NON_BARN_NAME_KEYWORDS.map((kw) => ({
+    name: { contains: kw, mode: "insensitive" as const },
+  })),
+};
+
 export const STABLES_BUSINESS_WHERE: Prisma.BusinessWhereInput = {
   isPublished: true,
   categories: STABLES_CATEGORY_SOME,
+  ...NOT_NON_BARN_NAME,
 };
 
 // Full listing shape used by the detail page. This is a Prisma `include`, so all
@@ -154,6 +187,7 @@ export function getByLocation(locationId: string, page = 1) {
     {
       isPublished: true,
       categories: STABLES_CATEGORY_SOME,
+      ...NOT_NON_BARN_NAME,
       OR: [
         { locationId },
         { location: { parentId: locationId } },
@@ -196,11 +230,25 @@ export async function getRelated(business: BusinessDetail, take = 4): Promise<Bu
   });
 }
 
+// Featured should showcase genuine, trustworthy barns — not just whatever has the
+// most Google reviews (which let a goat-yoga venue lead the homepage). Prefer
+// verified, then claimed (has a paying subscription), then hand-picked
+// (isFeatured), then rating/reviews. The non-barn name exclusion already lives in
+// STABLES_BUSINESS_WHERE. See specs/post-launch-fixes.md §2.
+function featuredOrdering(): Prisma.BusinessOrderByWithRelationInput[] {
+  return [
+    { isVerified: "desc" },
+    { isFeatured: "desc" },
+    { rating: { sort: "desc", nulls: "last" } },
+    { reviewCount: "desc" },
+  ];
+}
+
 export async function getFeatured(take = 6): Promise<BusinessCard[]> {
   return prisma.business.findMany({
     where: STABLES_BUSINESS_WHERE,
     include: businessCardInclude,
-    orderBy: ordering(),
+    orderBy: featuredOrdering(),
     take,
   });
 }
@@ -219,6 +267,7 @@ export function countByLocation(locationId: string): Promise<number> {
     where: {
       isPublished: true,
       categories: STABLES_CATEGORY_SOME,
+      ...NOT_NON_BARN_NAME,
       OR: [
         { locationId },
         { location: { parentId: locationId } },
