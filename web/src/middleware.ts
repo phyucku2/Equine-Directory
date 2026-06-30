@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { isTenantHost } from "@/lib/sites/tenant";
 
 // Best-effort in-memory rate limiter for API search/filter. Per-instance only
 // (edge instances don't share memory) — a coarse abuse guard, not a hard limit.
@@ -18,8 +19,21 @@ function rateLimited(ip: string): boolean {
   return entry.count > MAX_REQUESTS;
 }
 
+// Header used to hand the resolved tenant host from edge middleware to the
+// Node-runtime app (where Prisma resolves it via resolveSiteByHost). Edge can't
+// hit the DB, so we only flag the host here and resolve downstream.
+const TENANT_HOST_HEADER = "x-tenant-host";
+
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+
+  // Tenant detection (Website Builder): is this request for a barn site (custom
+  // domain or *.thestabledirectory.com subdomain) rather than the main app?
+  // DB-free + synchronous so it is edge-safe. We flag it via a request header;
+  // the actual Site lookup runs server-side in the tenant route group.
+  const host =
+    request.headers.get("host") ?? request.nextUrl.host ?? "";
+  const tenant = host ? isTenantHost(host) : false;
 
   // Canonicalize: all slugs are lowercase. 301 mixed-case paths to lowercase.
   if (pathname !== pathname.toLowerCase()) {
@@ -55,6 +69,15 @@ export function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = pathname.replace(/\/+$/, "");
     return NextResponse.redirect(`${url.pathname}${search}`, 301);
+  }
+
+  // For tenant hosts, forward the host on a request header so the Node-runtime
+  // tenant route group can resolve the Site without re-reading the Host header.
+  // Non-tenant (main app) requests pass through untouched.
+  if (tenant) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set(TENANT_HOST_HEADER, host);
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
   return NextResponse.next();

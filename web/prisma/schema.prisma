@@ -117,6 +117,14 @@ enum SubStatus {
   INCOMPLETE
 }
 
+// Website Builder (see specs/website-builder.md). Lifecycle of a generated
+// multi-tenant barn site.
+enum SiteStatus {
+  DRAFT
+  LIVE
+  SUSPENDED
+}
+
 // ─────────────────────────── Core models ───────────────────────────
 
 model Business {
@@ -200,6 +208,9 @@ model Business {
   trainers   Trainer[]
   events     Event[]
   spotlights Spotlight[]
+
+  // Website Builder (see specs/website-builder.md) — generated tenant site
+  site Site?
 
   // Crawler / audit
   dataSourceUrl    String?
@@ -672,4 +683,29 @@ model Spotlight {
 
   @@index([locationId, status])
   @@index([businessId])
+}
+
+// ─────────────────────────── Website Builder ───────────────────────────
+// See specs/website-builder.md. One generated, themed, multi-tenant barn site
+// per Business. Content is read live from the Business (photos/logo/facets/
+// trainers/events/reviews) by businessId, so a managed site stays auto-current
+// with its listing. theme = { colors:{primary,secondary,bg,text}, font };
+// pages = which pages + order + custom copy (tagline/about). The tenant resolver
+// (src/lib/sites/tenant.ts) maps a request host → Site via customDomain or
+// subdomain on the apex domain.
+model Site {
+  id           String     @id @default(cuid())
+  businessId   String     @unique
+  business     Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  subdomain    String     @unique
+  customDomain String?    @unique
+  templateId   String
+  theme        Json
+  pages        Json
+  status       SiteStatus @default(DRAFT)
+  dnsManaged   Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@index([status])
 }
