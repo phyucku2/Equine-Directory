@@ -287,6 +287,27 @@ def _gmaps_address(r: dict) -> str:
     return ""
 
 
+def _gmaps_city(r: dict) -> str | None:
+    """Pull the city from a gosom row.
+
+    gosom carries the city in the structured `complete_address` object (and
+    sometimes a flat `city` field); the flat `address` string often omits a
+    cleanly parseable city. Returning it here lets the geocoder place the listing
+    under its county — without it every row resolves to "no location" and is
+    skipped. Falls back to None so normalize()'s address regex can still try.
+    """
+    direct = r.get("city")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    for key in ("complete_address", "address"):
+        ca = r.get(key)
+        if isinstance(ca, dict):
+            c = ca.get("city")
+            if c and str(c).strip():
+                return str(c).strip()
+    return None
+
+
 def _parse_gmaps_rows(text: str) -> list[dict]:
     """gosom -json writes either a JSON array or newline-delimited JSON."""
     text = text.strip()
@@ -356,6 +377,7 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
         by_id[key] = RawListing(
             name=name,
             address=address,
+            city=_gmaps_city(r),
             county=county,
             state=state,
             phone=r.get("phone"),

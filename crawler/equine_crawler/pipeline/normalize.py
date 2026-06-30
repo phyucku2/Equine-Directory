@@ -39,8 +39,11 @@ def clean_text(text: str | None) -> str | None:
     return re.sub(r"\s+", " ", text).strip() or None
 
 
-# US state-suffixed city extraction, e.g. "..., Ocala, FL 34482" -> "Ocala".
-_CITY_RE = re.compile(r",\s*([A-Za-z][A-Za-z .'-]+),\s*FL\b", re.I)
+# US state-suffixed city extraction, e.g. "..., Ocala, FL 34482" -> "Ocala" or
+# "..., Redding, CA 96001" -> "Redding". Matches any 2-letter state code (was
+# hardcoded to FL, which silently dropped every non-FL listing in the national
+# rollout). The trailing state code anchors the city; we keep only group(1).
+_CITY_RE = re.compile(r",\s*([A-Za-z][A-Za-z .'-]+),\s*[A-Z]{2}\b")
 
 
 def infer_city(raw: RawListing) -> str | None:
