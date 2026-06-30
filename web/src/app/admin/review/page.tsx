@@ -38,6 +38,9 @@ export default async function AdminReviewPage() {
           <Link href="/admin/grants" className="text-sm text-blue-600 hover:underline">
             Manual grants →
           </Link>
+          <Link href="/admin/sites" className="text-sm text-blue-600 hover:underline">
+            Sites →
+          </Link>
           <span className="rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-600">
             {queue.length} pending
           </span>

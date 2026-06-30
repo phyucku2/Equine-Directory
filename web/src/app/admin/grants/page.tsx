@@ -141,9 +141,14 @@ export default async function AdminGrantsPage({
     <div className="mx-auto max-w-4xl px-4 py-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-stone-900">Manual grants</h1>
-        <Link href="/admin/review" className="text-sm text-blue-600 hover:underline">
-          Moderation queue →
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link href="/admin/sites" className="text-sm text-blue-600 hover:underline">
+            Sites →
+          </Link>
+          <Link href="/admin/review" className="text-sm text-blue-600 hover:underline">
+            Moderation queue →
+          </Link>
+        </div>
       </div>
       <p className="mt-1 text-sm text-stone-500">
         Grant a tier, trainer seats, or a city spotlight without payment.{" "}
