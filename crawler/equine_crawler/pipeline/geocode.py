@@ -84,6 +84,52 @@ def _find_county_id(cur: psycopg.Cursor, county: str | None, state: str | None =
     return row[0] if row else None
 
 
+def _resolve_nearest_city(
+    cur: psycopg.Cursor,
+    county_id: str | None,
+    state: str | None,
+    lat: float | None,
+    lng: float | None,
+) -> tuple[str, float, float] | None:
+    """Snap a city-less listing to the nearest existing CITY by the place's
+    coordinates — scoped to its county, then its state. Lets us keep a real barn
+    that the source returned with no parseable city (we still have county/state
+    from the query tag + exact lat/lng). Returns the place's own coords so the map
+    dot stays exact; the matched city is just for grouping/URL."""
+    if lat is None or lng is None:
+        return None
+    if county_id:
+        cur.execute(
+            """
+            SELECT id FROM "Location"
+            WHERE type = 'CITY' AND "parentId" = %s AND latitude IS NOT NULL
+            ORDER BY (latitude - %s) * (latitude - %s) + (longitude - %s) * (longitude - %s) ASC
+            LIMIT 1
+            """,
+            (county_id, lat, lat, lng, lng),
+        )
+        row = cur.fetchone()
+        if row:
+            return (row[0], lat, lng)
+    if state:
+        cur.execute(
+            """
+            SELECT l.id FROM "Location" l
+            JOIN "Location" c ON l."parentId" = c.id
+            JOIN "Location" s ON c."parentId" = s.id
+            WHERE l.type = 'CITY' AND s.type = 'STATE' AND upper(s.code) = upper(%s)
+              AND l.latitude IS NOT NULL
+            ORDER BY (l.latitude - %s) * (l.latitude - %s) + (l.longitude - %s) * (l.longitude - %s) ASC
+            LIMIT 1
+            """,
+            (state, lat, lat, lng, lng),
+        )
+        row = cur.fetchone()
+        if row:
+            return (row[0], lat, lng)
+    return None
+
+
 def resolve_or_create(
     conn: psycopg.Connection,
     city: str | None,
@@ -95,12 +141,15 @@ def resolve_or_create(
     """Return (location_id, lat, lng). Creates the city under its county if it
     isn't seeded yet (statewide/national). The state code scopes the county
     match so same-named counties in other states don't cross-link. Falls back to
-    a global seeded-city match when the county/state is unknown."""
-    if not city:
-        return None
-    city = city.strip()
+    a global seeded-city match when the county/state is unknown, and to the
+    nearest existing city (by coords) when there's no parseable city at all."""
     with conn.cursor() as cur:
         county_id = _find_county_id(cur, county, state)
+        if not city or not city.strip():
+            # No parseable city — snap to the nearest existing city by coords
+            # instead of dropping a real barn (see _resolve_nearest_city).
+            return _resolve_nearest_city(cur, county_id, state, lat, lng)
+        city = city.strip()
         if county_id:
             # Exact city within this county (avoids cross-county fuzzy errors).
             cur.execute(
