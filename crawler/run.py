@@ -69,14 +69,36 @@ _NONBARN_TEXT_KEYWORDS = (
     "gym", "fitness", "zoo", "aquarium", "attraction", "trailhead", "hunting",
     "winery", "vineyard", "brewery", "real estate", "auction", "rodeo",
     "supplier", "equipment", "shop", "nursery", "garden center",
+    # Equine-adjacent businesses we keep in the DB for the future SECONDARY
+    # directories (farrier / tack / vet / feed) but which are not boarding barns,
+    # so they must stay off the stable map. Vet/feed are already covered above.
+    "farrier", "blacksmith", "tack", "saddlery",
 )
 
+# "school/college/university" are strong non-barn signals (driving/sports/regular
+# schools) — but Google labels many real boarding & training barns "Horse riding
+# school" / "Equestrian academy". Treat these SOFT keywords as non-barn ONLY when
+# the place isn't clearly equine. The HARD keywords above (store, feed, farrier,
+# tack, vet, hotel, park, …) are never overridden, so the secondary-market
+# businesses still stay off the stable map.
+_SOFT_NONBARN = {"school", "college", "university"}
+_EQUINE_SIGNALS = ("horse", "equestrian", "stable", "pony", "paddock", "dressage", "riding")
 
-def _is_nonbarn_text(category: str | None) -> bool:
+
+def _is_nonbarn_text(category: str | None, name: str | None = None) -> bool:
     if not category:
         return False
     c = " " + category.lower() + " "
-    return any(k in c for k in _NONBARN_TEXT_KEYWORDS)
+    hits = [k for k in _NONBARN_TEXT_KEYWORDS if k in c]
+    if not hits:
+        return False
+    # Rescue clearly-equine schools/academies: if every match is a SOFT keyword and
+    # the category or name reads equine, it's a barn (publish), not a non-barn.
+    if all(h in _SOFT_NONBARN for h in hits):
+        text = c + " " + (name or "").lower() + " "
+        if any(s in text for s in _EQUINE_SIGNALS):
+            return False
+    return True
 
 
 def _start_job(conn, source_key: str, url: str) -> str:
@@ -149,7 +171,7 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     # publish genuine facilities, but route clear non-barns (parks,
                     # schools, hotels, stores, …) to moderation instead of the map.
                     nonbarn = (
-                        _is_nonbarn_text(n.primary_type)
+                        _is_nonbarn_text(n.primary_type, n.name)
                         if source.kind == "gmaps"
                         else _is_nonbarn(n.primary_type)
                     )
