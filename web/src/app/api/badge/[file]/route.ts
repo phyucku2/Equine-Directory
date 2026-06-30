@@ -3,8 +3,11 @@
 // magnet: every claimed barn can copy a one-line <a><img></a> snippet (built by
 // <BadgeSnippet>) that embeds this SVG and links back to our domain.
 //
-// The route segment is `[slug].svg`, so `slug` is the dynamic param and `.svg` is
-// a literal suffix: a request to `/api/badge/foo.svg` resolves `{ slug: "foo" }`.
+// The dynamic segment is `[file]` (a normal single-segment param, which Next.js
+// types correctly — a folder literally named `[slug].svg` is NOT a valid dynamic
+// segment and generates empty params). We take `<slug>.svg` as `file` and strip
+// the trailing `.svg`, so a request to `/api/badge/foo.svg` resolves slug "foo"
+// while keeping the pretty `.svg` URL in the embed snippet.
 //
 // No PII is ever rendered — only the barn name, its REAL aggregate rating, and its
 // verification status. Two honest variants (chosen by `?variant=`):
@@ -122,9 +125,11 @@ function sealSvg(name: string, headline: string, subtitle: string, stars: number
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ slug: string }> },
+  { params }: { params: Promise<{ file: string }> },
 ) {
-  const { slug } = await params;
+  const { file } = await params;
+  // `file` is `<slug>.svg` from the embed URL; strip the literal extension.
+  const slug = file.endsWith(".svg") ? file.slice(0, -4) : file;
   const { searchParams } = new URL(request.url);
   const variant = searchParams.get("variant") === "rating" ? "rating" : "seal";
 
