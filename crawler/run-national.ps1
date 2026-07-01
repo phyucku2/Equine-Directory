@@ -90,12 +90,21 @@ foreach ($st in $AllStates) {
   if (-not (Test-Path "out/results-$st.json")) { Log "$st : no results file, skipping ingest"; continue }
 
   Log "$st : ingesting to Neon…"
-  # Stream ingest output live AND capture it, so we can pull the `done:` line.
+  # Stream ingest output live AND capture it, so we can pull the summary.
   python run.py --source gmaps-file --file "out/results-$st.json" --no-llm 2>&1 | Tee-Object -Variable out
-  $done = ($out | Select-String -Pattern '^done:' | Select-Object -Last 1)
+  # run.py prints "  done: …" (indented) then a "review breakdown" of non-barn
+  # types. Grab the done line for the log, and write a compact per-state report
+  # (done + breakdown) to paste to Claude for the filtering/QA pass.
+  $done = ($out | Select-String -Pattern '^\s*done:' | Select-Object -Last 1)
   if (-not $done) { $done = ($out | Select-Object -Last 1) }
-  Log "$st : $done"
-  Notify "[$st] $done"
+  Log "$st : $($done.ToString().Trim())"
+  Notify "[$st] $($done.ToString().Trim())"
+
+  $reportLines = $out |
+    Select-String -Pattern '^\s*done:|review breakdown|e\.g\.' |
+    ForEach-Object { $_.ToString().TrimEnd() }
+  Set-Content -Path "out/report-$st.txt" -Value (@("=== $st  ($(Get-Date -Format 'u')) ===") + $reportLines)
+  Log "$st : wrote out/report-$st.txt (paste to Claude for filtering/QA)"
 
   New-Item -ItemType File -Force -Path $flag | Out-Null
 }
