@@ -67,8 +67,8 @@ function Notify($msg) {
   }
 }
 
-Log "=== national push start — $($AllStates.Count) states ==="
-Notify "national crawl started — $($AllStates.Count) states queued"
+Log "=== national push start - $($AllStates.Count) states ==="
+Notify "national crawl started - $($AllStates.Count) states queued"
 
 foreach ($st in $AllStates) {
   $flag = "out/done-$st.flag"
@@ -110,7 +110,8 @@ foreach ($st in $AllStates) {
 }
 
 Log "=== national push COMPLETE ==="
-$summary = Get-Content $log | Select-String -Pattern ': done:' | ForEach-Object { $_.ToString() }
-Notify "ALL DONE — national crawl finished.`n$($summary -join "`n")"
+$nl = [Environment]::NewLine
+$summary = (Get-Content $log | Select-String -Pattern ': done:' | ForEach-Object { $_.ToString() }) -join $nl
+Notify ("ALL DONE - national crawl finished." + $nl + $summary)
 Write-Host ""
 Write-Host "Done. Paste the contents of $log to Claude to read the national lift." -ForegroundColor Green
