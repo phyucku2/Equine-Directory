@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getFeatured } from "@/lib/db/business";
-import { BusinessCard } from "@/components/business/BusinessCard";
+import { FeaturedStables } from "@/components/home/FeaturedStables";
 import { NearbyStables } from "@/components/home/NearbyStables";
 import { NearbyCities } from "@/components/home/NearbyCities";
 import { cityUrl } from "@/lib/urls";
@@ -75,17 +75,10 @@ export default async function HomePage() {
       </section>
 
       <div className="mx-auto max-w-6xl px-4">
-        {/* Featured */}
-        {featured.length > 0 && (
-          <section className="py-14">
-            <SectionHeading eyebrow="Handpicked" title="Featured stables" />
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {featured.map((b) => (
-                <BusinessCard key={b.id} business={b} />
-              ))}
-            </div>
-          </section>
-        )}
+        {/* Featured — local to the visitor (paid/spotlight barns in their area
+            first, then the best local barns); server-rendered national set is the
+            SEO/no-JS fallback and initial paint. */}
+        <FeaturedStables initial={featured} />
 
         {/* Stables near you (geo-aware; hides itself when nothing is close) */}
         <NearbyStables />

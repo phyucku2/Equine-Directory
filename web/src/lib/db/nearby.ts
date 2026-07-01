@@ -135,3 +135,56 @@ export async function getNearbyCities(
     distanceKm: r.distance_km,
   }));
 }
+
+// Featured barns for the visitor's AREA: paid/spotlight/hand-picked barns nearby
+// first, then the best-rated local barns to fill. So the homepage "Featured"
+// section is always local — and when nobody is paying for featured placement in
+// the area, we "go straight into the barns that are there" (nearest, best-rated).
+// Excludes reported (open Report), non-barn-named, and non-boarding, within MAX_KM.
+export async function getFeaturedNearby(
+  lat: number,
+  lng: number,
+  take = 6,
+): Promise<BusinessCard[]> {
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT id FROM (
+      SELECT b."id" AS id,
+        (b."isFeatured" OR EXISTS (
+          SELECT 1 FROM "Spotlight" s
+          WHERE s."businessId" = b."id" AND s."status" = 'active'
+            AND s."startsAt" <= now() AND now() <= s."endsAt"
+        )) AS featured,
+        b."rating" AS rating,
+        b."reviewCount" AS review_count,
+        6371 * acos(LEAST(1, GREATEST(-1,
+          cos(radians(${lat})) * cos(radians(b."latitude")) *
+            cos(radians(b."longitude") - radians(${lng}))
+          + sin(radians(${lat})) * sin(radians(b."latitude"))
+        ))) AS distance_km
+      FROM "Business" b
+      WHERE b."isPublished" = true
+        AND b."latitude" IS NOT NULL AND b."longitude" IS NOT NULL
+        AND b."name" NOT ILIKE ALL(${NON_BARN_NAME_PATTERNS}::text[])
+        AND NOT EXISTS (
+          SELECT 1 FROM "Report" r WHERE r."businessId" = b."id" AND r."status" = 'open'
+        )
+        AND EXISTS (
+          SELECT 1 FROM "BusinessCategory" bc
+          JOIN "Category" c ON c."id" = bc."categoryId"
+          WHERE bc."businessId" = b."id"
+            AND bc."reviewStatus" IN ('AUTO_APPROVED', 'APPROVED')
+            AND c."slug" = ${STABLES_SLUG}
+        )
+    ) t
+    WHERE t.distance_km <= ${MAX_KM}
+    ORDER BY t.featured DESC, t.rating DESC NULLS LAST, t.review_count DESC, t.distance_km ASC
+    LIMIT ${take}
+  `;
+  if (rows.length === 0) return [];
+  const order = new Map(rows.map((r, i) => [r.id, i]));
+  const cards = await prisma.business.findMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    include: businessCardInclude,
+  });
+  return cards.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+}
