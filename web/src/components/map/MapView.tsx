@@ -33,6 +33,24 @@ const DEFAULT_ZOOM = 9;
 const NO_SCROLLBAR = "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden";
 const MAPS_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY;
 
+// Great-circle distance in km, mirroring the SQL formula in src/lib/db/nearby.ts
+// (haversine via acos, clamped to avoid domain errors from float rounding).
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const rad = (d: number) => (d * Math.PI) / 180;
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  return (
+    6371 *
+    Math.acos(
+      clamp(
+        Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.cos(rad(lng2 - lng1)) +
+          Math.sin(rad(lat1)) * Math.sin(rad(lat2)),
+        -1,
+        1,
+      ),
+    )
+  );
+}
+
 export function MapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -65,13 +83,18 @@ export function MapView() {
   // Lightweight saved-id merge (M5): render hearts filled where the signed-in
   // user has already favorited a listing. 401 (signed out) just yields no ids.
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  // Visitor's approximate/precise location, used to sort the list/carousel by
+  // distance and to center the initial map view (instead of always showing
+  // the hardcoded DEFAULT_CENTER for out-of-area visitors).
+  const [visitorGeo, setVisitorGeo] = useState<{ lat: number; lng: number } | null>(null);
+  const centeredOnVisitorRef = useRef(false);
 
   const hasSome = (have: string[] | undefined, want: Set<string>) =>
     want.size === 0 || (have ?? []).some((v) => want.has(v));
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return items.filter(
+    const matches = items.filter(
       (s) =>
         (!q || `${s.name} ${s.city}`.toLowerCase().includes(q)) &&
         (minRating == null || (s.rating ?? 0) >= minRating) &&
@@ -82,7 +105,15 @@ export function MapView() {
         (priceMax == null || (s.priceFrom != null && s.priceFrom <= priceMax)) &&
         FLAG_FILTERS.every((f) => !flags.has(f.key) || f.test(s)),
     );
-  }, [items, query, minRating, verifiedOnly, disciplines, boardTypes, trainingTypes, priceMax, flags]);
+    // Sort nearest-first once we know the visitor's location; otherwise leave
+    // the unsorted (cached, visitor-agnostic) /api/map order as-is.
+    if (!visitorGeo) return matches;
+    return [...matches].sort(
+      (a, b) =>
+        haversineKm(visitorGeo.lat, visitorGeo.lng, a.lat, a.lng) -
+        haversineKm(visitorGeo.lat, visitorGeo.lng, b.lat, b.lng),
+    );
+  }, [items, query, minRating, verifiedOnly, disciplines, boardTypes, trainingTypes, priceMax, flags, visitorGeo]);
 
   const activeFilters =
     (minRating != null ? 1 : 0) +
@@ -194,6 +225,46 @@ export function MapView() {
       .catch(() => {});
   }, []);
 
+  // Resolve the visitor's location for list sorting + initial map centering.
+  // Mirrors NearbyStables: never prompt for permission, only use precise
+  // geolocation if it's already granted; otherwise fall back to the shared
+  // IP-approximate /api/geo route.
+  useEffect(() => {
+    let active = true;
+    const fromIp = () =>
+      fetch("/api/geo")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((g: { lat: number; lng: number } | null) => {
+          if (active && g) setVisitorGeo({ lat: g.lat, lng: g.lng });
+        })
+        .catch(() => {});
+
+    if (navigator.geolocation && navigator.permissions) {
+      navigator.permissions
+        .query({ name: "geolocation" as PermissionName })
+        .then((status) => {
+          if (status.state === "granted") {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => {
+                if (active) setVisitorGeo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+              },
+              () => fromIp(),
+              { timeout: 4000 },
+            );
+          } else {
+            fromIp();
+          }
+        })
+        .catch(() => fromIp());
+    } else {
+      fromIp();
+    }
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Init Google Maps.
   useEffect(() => {
     if (!MAPS_KEY || !containerRef.current) return;
@@ -297,6 +368,17 @@ export function MapView() {
     clustererRef.current.addMarkers(markers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, mapReady]);
+
+  // Center the initial map view on the visitor once we know where they are,
+  // instead of always showing the hardcoded DEFAULT_CENTER (Broward) for
+  // out-of-area visitors. Guarded so it only runs once and doesn't fight
+  // user-driven panning afterward (e.g. via the "near me" button).
+  useEffect(() => {
+    if (!mapReady || !visitorGeo || centeredOnVisitorRef.current) return;
+    centeredOnVisitorRef.current = true;
+    mapRef.current?.panTo({ lat: visitorGeo.lat, lng: visitorGeo.lng });
+    mapRef.current?.setZoom(11);
+  }, [mapReady, visitorGeo]);
 
   // Emphasize the selected stable's marker without rebuilding the cluster.
   useEffect(() => {
