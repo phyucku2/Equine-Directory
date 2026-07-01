@@ -15,8 +15,18 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
+import sys
 import urllib.request
 from collections import Counter
+
+# Windows consoles default stdout to the OS codepage (e.g. cp1252), not UTF-8 —
+# printing a real scraped business name with a curly apostrophe or an em dash
+# (or our own "-" separator, previously an em dash) then mangles to "G??s"-style
+# mojibake instead of raising (errors="replace" is the Python default there).
+# Force UTF-8 with a safe fallback so all crawl output — including piped-through
+# PowerShell logs/reports — renders correctly without needing PYTHONUTF8=1 set.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from dotenv import load_dotenv
 
@@ -238,7 +248,7 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
         print("  review breakdown (non-barn types held for moderation / secondary):")
         for t, c in review_types.most_common(25):
             examples = ", ".join(review_examples.get(t, [])[:3])
-            print(f"    {c:>4}  {t}  —  e.g. {examples}")
+            print(f"    {c:>4}  {t}  -  e.g. {examples}")
     _revalidate(paths_changed=(created + updated) > 0)
 
 

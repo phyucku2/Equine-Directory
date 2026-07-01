@@ -200,7 +200,20 @@ def resolve_or_create(
             if ex:
                 return (ex[0], lat, lng)
 
-        # No usable county — try the global seeded-city lookup.
+        # No usable county — this is a never-crawled county (common once we're
+        # scraping beyond the states with prior seed data). A pure nationwide
+        # fuzzy text match on `city` alone (no state/coords scoping) is
+        # unreliable for anything but already-seeded major metros, and was
+        # silently dropping 40-65% of results in several states (measured on
+        # CO/IL/IN/MI/MO/OH/OK during the national gosom rollout) — every
+        # unmatched small town became a skip, even with a perfectly good lat/lng
+        # on hand. Prefer the coordinate-based nearest-city fallback (uses the
+        # place's own coords, scoped to state — geographically exact regardless
+        # of name) and only fall back to the fuzzy text match if we have no
+        # usable coordinates at all.
+        nearest = _resolve_nearest_city(cur, county_id, state, lat, lng)
+        if nearest:
+            return nearest
         return _resolve_global(cur, city)
 
 
