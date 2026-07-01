@@ -38,24 +38,46 @@ export async function resolveVisitorGeo(
 ): Promise<VisitorGeo | null> {
   const { searchParams } = new URL(request.url);
 
-  const queryLat = Number(searchParams.get("lat"));
-  const queryLng = Number(searchParams.get("lng"));
-  if (Number.isFinite(queryLat) && Number.isFinite(queryLng)) {
-    return { lat: queryLat, lng: queryLng, source: "query" };
+  // 1. Explicit browser-geolocation override via query params.
+  // IMPORTANT: searchParams.get()/headers.get() return null when absent, and
+  // Number(null) === 0 (a *finite* number!). The old code did
+  // `Number(searchParams.get("lat"))` then `Number.isFinite(...)`, so every
+  // param-less call resolved to (0,0) source:"query" — the null island off
+  // Africa — and short-circuited the header fallbacks (no barn is within 250km
+  // of (0,0), so every "near you" query came back empty). Guard by requiring the
+  // raw values to actually be present before Number()-ing.
+  const rawQLat = searchParams.get("lat");
+  const rawQLng = searchParams.get("lng");
+  if (rawQLat && rawQLng) {
+    const queryLat = Number(rawQLat);
+    const queryLng = Number(rawQLng);
+    if (Number.isFinite(queryLat) && Number.isFinite(queryLng)) {
+      return { lat: queryLat, lng: queryLng, source: "query" };
+    }
   }
 
-  const headerLat = Number(request.headers.get("x-vercel-ip-latitude"));
-  const headerLng = Number(request.headers.get("x-vercel-ip-longitude"));
-  if (Number.isFinite(headerLat) && Number.isFinite(headerLng)) {
-    return { lat: headerLat, lng: headerLng, source: "header-precise" };
+  // 2. Vercel's precise edge geo headers (same Number(null)===0 trap — these are
+  //    absent on the Hobby plan, so this must not falsely match at (0,0)).
+  const rawHLat = request.headers.get("x-vercel-ip-latitude");
+  const rawHLng = request.headers.get("x-vercel-ip-longitude");
+  if (rawHLat && rawHLng) {
+    const headerLat = Number(rawHLat);
+    const headerLng = Number(rawHLng);
+    if (Number.isFinite(headerLat) && Number.isFinite(headerLng)) {
+      return { lat: headerLat, lng: headerLng, source: "header-precise" };
+    }
   }
 
+  // 3. City/region headers → Location table lookup (the Hobby-plan path).
   const rawCity = request.headers.get("x-vercel-ip-city");
-  const regionCode = request.headers.get("x-vercel-ip-country-region");
+  const regionRaw = request.headers.get("x-vercel-ip-country-region");
   // x-vercel-ip-country is available for future disambiguation (e.g.
   // non-US region codes) but the current STATE hierarchy is US-only.
   const country = request.headers.get("x-vercel-ip-country");
-  if (!rawCity || !regionCode || !country) return null;
+  if (!rawCity || !regionRaw || !country) return null;
+  // Vercel may send the region as ISO 3166-2 ("US-FL") or bare ("FL") depending
+  // on plan/edge — normalize to the bare state code our Location.code stores.
+  const regionCode = regionRaw.includes("-") ? regionRaw.split("-").pop()! : regionRaw;
 
   let decodedCity: string;
   try {
