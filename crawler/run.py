@@ -16,6 +16,7 @@ import argparse
 import asyncio
 import os
 import urllib.request
+from collections import Counter
 
 from dotenv import load_dotenv
 
@@ -149,6 +150,12 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
     print(f"  extracted {len(raws)} raw listings")
 
     created = updated = published = queued = skipped = 0
+    # Tally the Google category types we route to review (non-barns), with a few
+    # example names each, so the run ends with a scannable breakdown — makes it
+    # easy to spot a systemically mis-classified type (e.g. real barns landing
+    # under "Horse riding school") without reading every per-record line.
+    review_types: Counter[str] = Counter()
+    review_examples: dict[str, list[str]] = {}
     with connect() as conn:
         job_id = _start_job(conn, source.key, source.urls[0] if source.urls else "")
         cat_ids = load_category_ids(conn)
@@ -177,6 +184,11 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                     )
                     grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
                     if nonbarn:
+                        t = n.primary_type or "unknown"
+                        review_types[t] += 1
+                        ex = review_examples.setdefault(t, [])
+                        if len(ex) < 3:
+                            ex.append(n.name)
                         print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
                     graded = [
                         GradedCategory(
@@ -222,6 +234,11 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
         f"  done: {created} created, {updated} updated, {skipped} skipped | "
         f"{published} published, {queued} category claims sent to review"
     )
+    if review_types:
+        print("  review breakdown (non-barn types held for moderation / secondary):")
+        for t, c in review_types.most_common(25):
+            examples = ", ".join(review_examples.get(t, [])[:3])
+            print(f"    {c:>4}  {t}  —  e.g. {examples}")
     _revalidate(paths_changed=(created + updated) > 0)
 
 
