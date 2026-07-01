@@ -4,6 +4,38 @@ Self-hosted Google Maps scraping with [gosom/google-maps-scraper](https://github
 no 20-result cap, $0/record, your residential IP (less blocking). Output JSON →
 ingested into Neon through our pipeline (`--source gmaps-file`).
 
+## 🌎 All-day national push (`run-national.ps1`)
+
+Crawls **every state, one at a time**, ordered by horse population (highest-value
+first). For each state it generates queries → scrapes with gosom → ingests to Neon
+→ logs the `done:` line → marks the state complete. It's **checkpointed and
+resumable**: Ctrl+C any time and re-run — states already finished
+(`out/done-<ST>.flag`) are skipped, so it picks up where it left off the next day.
+Full national coverage is ~9,000 queries (~35+ hrs of scraping), so this is a
+multi-day, run-it-in-the-background effort.
+
+```powershell
+cd C:\Users\mikeh\Documents\Equine-Directory\crawler
+git pull
+$env:DATABASE_URL = 'postgresql://...your-neon-url...'        # single quotes (has '&')
+# Optional — get pinged as each state finishes (Discord/Slack incoming webhook):
+# $env:CRAWL_NOTIFY_WEBHOOK = 'https://discord.com/api/webhooks/...'
+.\run-national.ps1
+#   only some states:   .\run-national.ps1 -States TX,KY,OK
+#   start over:         .\run-national.ps1 -Fresh
+```
+
+- **Docker Desktop must be running** (green whale) — the script fails fast if not.
+- Progress is appended to **`national-crawl-log.txt`**; each state's `done:` line
+  lands there. **Paste that log to Claude** to read the national lift.
+- **Home-IP throttling:** a run this big may get rate-limited without proxies. If a
+  state returns 0 / gets blocked, lower `-c` to `4` inside the script, or add
+  `-proxies '...'` (residential). Running a handful of states per day on a bare home
+  IP is usually fine.
+- **Notifications:** set `CRAWL_NOTIFY_WEBHOOK` and the script POSTs each state's
+  result + a final "ALL DONE" summary there (that's how Claude gets looped in on a
+  local run — otherwise paste the log).
+
 ## ⏰ Scheduled run — California (turnkey)
 
 The CA query list is **pre-generated and committed** as `queries-ca.txt` (162
