@@ -105,7 +105,7 @@ export default async function IntentPage({
           <p className="mt-2 text-sm">
             Browse{" "}
             <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
-              all {cat.name.toLowerCase()} in Florida
+              all {cat.name.toLowerCase()} nationwide
             </Link>{" "}
             or{" "}
             <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
@@ -128,7 +128,7 @@ export default async function IntentPage({
           />
           <div className="mt-10 flex flex-wrap gap-3 text-sm">
             <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
-              All {cat.name.toLowerCase()} in Florida →
+              All {cat.name.toLowerCase()} nationwide →
             </Link>
             <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
               All stables in {loc.name} →

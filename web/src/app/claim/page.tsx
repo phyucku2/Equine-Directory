@@ -13,7 +13,7 @@ export default function ClaimPage() {
       <Breadcrumbs items={[{ name: "Home", url: "/" }, { name: "Claim your listing", url: "/claim" }]} />
       <h1 className="mt-4 text-3xl font-bold text-stone-900">Claim your business</h1>
       <p className="mt-3 text-stone-600">
-        Are you the owner of an equine business in Florida? Claiming your listing lets you keep
+        Are you the owner of an equine business? Claiming your listing lets you keep
         your details accurate, add photos, and respond to reviews — for free.
       </p>
       <ol className="mt-6 space-y-3 text-stone-700">
