@@ -11,7 +11,7 @@ const MONTH_FMT = new Intl.DateTimeFormat("en-US", { month: "long", year: "numer
 export const metadata: Metadata = {
   title: "Horse Events, Shows, Clinics & Camps",
   description:
-    "Upcoming horse shows, clinics, camps, and events at stables across Florida — find something to ride toward.",
+    "Upcoming horse shows, clinics, camps, and events at stables across the country — find something to ride toward.",
   alternates: { canonical: absoluteUrl(eventsUrl()) },
 };
 
@@ -39,7 +39,7 @@ export default async function EventsCalendarPage() {
       />
       <h1 className="mt-4 text-3xl font-semibold text-pine">Upcoming horse events</h1>
       <p className="mt-1 text-ink/55">
-        Shows, clinics, camps, and more at stables across Florida.
+        Shows, clinics, camps, and more at stables across the country.
       </p>
 
       {events.length === 0 ? (

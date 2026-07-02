@@ -25,11 +25,11 @@ export async function generateMetadata({
   const { category } = await params;
   const cat = await getCategoryBySlug(category);
   if (!cat) return { title: "Category not found" };
-  const title = `${cat.name} in Florida`;
+  const title = `${cat.name}`;
   const count = await countByCategory(category);
   return {
     title,
-    description: cat.description ?? `Find ${cat.name.toLowerCase()} across Florida.`,
+    description: cat.description ?? `Find ${cat.name.toLowerCase()} across the country.`,
     robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(categoryUrl(category)) },
   };
@@ -61,11 +61,11 @@ export default async function CategoryPage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      <JsonLd data={collectionLd(`${cat.name} in Florida`, categoryUrl(cat.slug), results.items)} />
+      <JsonLd data={collectionLd(cat.name, categoryUrl(cat.slug), results.items)} />
       <Breadcrumbs items={crumbs} />
 
       <header className="mt-4">
-        <h1 className="text-3xl font-bold text-pine">{cat.name} in Florida</h1>
+        <h1 className="text-3xl font-bold text-pine">{cat.name}</h1>
         <p className="mt-1 text-ink/55">
           {results.total} {results.total === 1 ? "listing" : "listings"}
           {cat.description ? ` · ${cat.description}` : ""}
@@ -74,7 +74,7 @@ export default async function CategoryPage({
 
       {results.items.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed border-leather/30 bg-white p-8 text-center text-ink/55">
-          No listings here yet. We&apos;re actively adding Florida businesses — check back soon.
+          No listings here yet. We&apos;re actively adding new stables — check back soon.
         </p>
       ) : (
         <>

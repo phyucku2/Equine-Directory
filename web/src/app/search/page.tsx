@@ -15,7 +15,7 @@ import {
 
 export const metadata: Metadata = {
   title: "Search stables",
-  description: "Search horse stables and barns across Florida — boarding, training, and facilities.",
+  description: "Search horse stables and barns nationwide — boarding, training, and facilities.",
   robots: "noindex,follow",
 };
 
