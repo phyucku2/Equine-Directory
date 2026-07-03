@@ -8,6 +8,7 @@ import { MobileAuthCorner } from "@/components/auth/MobileAuthCorner";
 import { JsonLd } from "@/components/JsonLd";
 import { organizationLd, websiteLd } from "@/lib/seo/jsonld";
 import { SITE } from "@/lib/site";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,6 +43,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col font-sans text-ink">
+        <GoogleAnalytics />
         <JsonLd data={[organizationLd(), websiteLd()]} />
         <Providers>
           <Header />
