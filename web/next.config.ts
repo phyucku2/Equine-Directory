@@ -11,6 +11,17 @@ const nextConfig: NextConfig = {
     // image). Omitting `search` allows the query; the route validates `ref`.
     localPatterns: [{ pathname: "/api/place-photo" }],
   },
+  async rewrites() {
+    return {
+      // /sitemap.xml is reserved by the app/sitemap.ts metadata route, which
+      // (with generateSitemaps) serves only /sitemap/<id>.xml and 404s at the
+      // index URL robots.txt advertises. beforeFiles wins over the reserved
+      // route, mapping it onto the real index handler (app/sitemap-index.xml).
+      beforeFiles: [{ source: "/sitemap.xml", destination: "/sitemap-index.xml" }],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     return [
       {
