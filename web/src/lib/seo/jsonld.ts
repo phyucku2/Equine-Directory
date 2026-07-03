@@ -67,6 +67,34 @@ export function collectionLd(name: string, url: string, businesses: { name: stri
   };
 }
 
+// FAQPage schema (Goal 5 / T44). The same Q&As must be visible on the page.
+export function faqLd(faqs: { q: string; a: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+}
+
+// Article schema for the /guides long-tail content.
+export function articleLd(a: { title: string; description: string; url: string; datePublished: string; dateModified?: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: a.title,
+    description: a.description,
+    url: absoluteUrl(a.url),
+    datePublished: a.datePublished,
+    dateModified: a.dateModified ?? a.datePublished,
+    author: { "@type": "Organization", name: SITE_NAME },
+    publisher: { "@type": "Organization", name: SITE_NAME, url: absoluteUrl("/") },
+  };
+}
+
 export function localBusinessLd(b: BusinessDetail) {
   const primaryCat = b.categories[0]?.category.name;
   const ld: Record<string, unknown> = {

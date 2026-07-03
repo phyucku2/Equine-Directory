@@ -11,6 +11,7 @@ import { BusinessCard } from "@/components/business/BusinessCard";
 import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd } from "@/lib/seo/jsonld";
+import { categoryCopy } from "@/lib/seo/copy";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 3600;
@@ -99,6 +100,12 @@ export default async function IntentPage({
         <p className="mt-1 text-ink/55">
           {results.total} {results.total === 1 ? "listing" : "listings"}
         </p>
+        {(() => {
+          const copy = categoryCopy(p.category);
+          return copy ? (
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink/65">{copy.intro(placeName)}</p>
+          ) : null;
+        })()}
       </header>
 
       {results.items.length === 0 ? (

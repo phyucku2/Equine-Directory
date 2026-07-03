@@ -85,7 +85,9 @@
       funnel** (owner Website tab lead form $99/$299 + $49.99/yr; embeddable
       Certified badge `/api/badge/[slug].svg` as the backlink magnet).
 - [ ] T43 Phase-2 categories: grooming/care, transportation, remaining products (apparel)
-- [ ] T44 FAQ schema on category pages; guides/blog scaffolding; newsletter capture
+- [x] T44 (2026-07-03) FAQ schema + unique intro copy on category hubs & intent pages
+      (`lib/seo/copy.ts`); `/guides` editorial articles with Article JSON-LD + sitemap;
+      newsletter capture (NewsletterSubscriber model + `/api/newsletter` + footer form)
 - [ ] T45 Google Business + Yelp Fusion API enrichment (cached)
 
 ## Phase 3 — Monetization at scale

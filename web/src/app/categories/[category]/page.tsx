@@ -7,7 +7,8 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
-import { collectionLd } from "@/lib/seo/jsonld";
+import { collectionLd, faqLd } from "@/lib/seo/jsonld";
+import { categoryCopy } from "@/lib/seo/copy";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
@@ -52,6 +53,7 @@ export default async function CategoryPage({
 
   const page = Math.max(1, Number(pageParam) || 1);
   const results = await getByCategory(category, page);
+  const copy = categoryCopy(category);
 
   const crumbs = [
     { name: "Home", url: "/" },
@@ -63,6 +65,7 @@ export default async function CategoryPage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <JsonLd data={collectionLd(cat.name, categoryUrl(cat.slug), results.items)} />
+      {copy && copy.faqs.length > 0 && <JsonLd data={faqLd(copy.faqs)} />}
       <Breadcrumbs items={crumbs} />
 
       <header className="mt-4">
@@ -71,6 +74,7 @@ export default async function CategoryPage({
           {results.total} {results.total === 1 ? "listing" : "listings"}
           {cat.description ? ` · ${cat.description}` : ""}
         </p>
+        {copy && <p className="mt-3 max-w-3xl text-sm leading-relaxed text-ink/65">{copy.intro()}</p>}
       </header>
 
       {results.items.length === 0 ? (
@@ -86,6 +90,21 @@ export default async function CategoryPage({
           </div>
           <Pagination basePath={categoryUrl(cat.slug)} page={results.page} totalPages={results.totalPages} />
         </>
+      )}
+
+      {/* Visible FAQ content backing the FAQPage JSON-LD (Goal 5 / T44) */}
+      {copy && copy.faqs.length > 0 && (
+        <section className="mt-14 max-w-3xl">
+          <h2 className="text-xl font-semibold text-pine">Frequently asked questions</h2>
+          <div className="mt-4 space-y-4">
+            {copy.faqs.map((f) => (
+              <details key={f.q} className="rounded-xl border border-leather/15 bg-white p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-pine">{f.q}</summary>
+                <p className="mt-2 text-sm leading-relaxed text-ink/65">{f.a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );
