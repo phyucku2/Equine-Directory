@@ -4,12 +4,32 @@ import { PUBLIC_BUSINESS_WHERE, PUBLIC_CATEGORY_SLUGS } from "@/lib/db/business"
 import { businessUrl, categoryUrl, stateUrl, countyUrl, cityUrl, eventUrl, eventsUrl, absoluteUrl } from "@/lib/urls";
 import { isBusinessIndexable } from "@/lib/seo/indexing";
 import { getEventsForSitemap } from "@/lib/db/events";
+import { GUIDES } from "@/lib/guides";
 
 export const revalidate = 86400;
 
 // Split sitemaps: /sitemap.xml is the index, sub-sitemaps at /sitemap/<id>.xml.
 export async function generateSitemaps() {
-  return [{ id: "businesses" }, { id: "categories" }, { id: "locations" }, { id: "events" }];
+  return [
+    { id: "businesses" },
+    { id: "categories" },
+    { id: "locations" },
+    { id: "events" },
+    { id: "guides" },
+  ];
+}
+
+// Static editorial guides (Goal 5 long-tail content).
+function guidesSitemap(): MetadataRoute.Sitemap {
+  return [
+    { url: absoluteUrl("/guides"), changeFrequency: "weekly" as const, priority: 0.6 },
+    ...GUIDES.map((g) => ({
+      url: absoluteUrl(`/guides/${g.slug}`),
+      lastModified: new Date(g.datePublished),
+      changeFrequency: "monthly" as const,
+      priority: 0.6,
+    })),
+  ];
 }
 
 async function businessesSitemap(): Promise<MetadataRoute.Sitemap> {
@@ -131,6 +151,8 @@ export default async function sitemap({ id }: { id: string }): Promise<MetadataR
         return await locationsSitemap();
       case "events":
         return await eventsSitemap();
+      case "guides":
+        return guidesSitemap();
       default:
         return [];
     }

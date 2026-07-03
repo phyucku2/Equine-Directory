@@ -697,3 +697,15 @@ model Report {
   @@index([businessId, status])
   @@index([status])
 }
+
+// Consumer email capture (Goal 5/7 · growth-and-pipeline.md §4 "audience"). The
+// asset every revenue stream monetizes: newsletters, partner offers, promoted
+// barns. Signup is one-field (footer + guides); unsubscribe is a soft flag so
+// re-subscribes are idempotent and history is kept.
+model NewsletterSubscriber {
+  id             String    @id @default(cuid())
+  email          String    @unique @db.VarChar(255)
+  source         String?   @db.VarChar(64) // footer | guide | camp-guide | …
+  createdAt      DateTime  @default(now())
+  unsubscribedAt DateTime?
+}
