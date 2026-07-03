@@ -140,8 +140,13 @@ async function eventsSitemap(): Promise<MetadataRoute.Sitemap> {
   return entries;
 }
 
-export default async function sitemap({ id }: { id: string }): Promise<MetadataRoute.Sitemap> {
+// Next 16: `id` arrives as a Promise and MUST be awaited. Destructuring it as a
+// plain string made the switch compare a Promise object against the id strings,
+// so every sub-sitemap silently fell through to `default: []` — production
+// served valid-but-EMPTY urlsets for all five sitemaps until this was awaited.
+export default async function sitemap(props: { id: Promise<string> }): Promise<MetadataRoute.Sitemap> {
   try {
+    const id = await props.id;
     switch (id) {
       case "businesses":
         return await businessesSitemap();
