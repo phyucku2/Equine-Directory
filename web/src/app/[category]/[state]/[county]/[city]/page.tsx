@@ -8,6 +8,7 @@ import { getIntentCombos } from "@/lib/db/intent";
 import { intentUrl, categoryUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { NearbyCityLinks } from "@/components/NearbyCityLinks";
 import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd } from "@/lib/seo/jsonld";
@@ -47,8 +48,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { cat, loc } = await load(p);
   if (!cat || !loc) return { title: "Not found" };
   const count = await getByCategoryAndLocation(p.category, loc.id, 1);
-  const stateName = loc.parent?.parent?.name ?? "";
-  const title = stateName ? `${cat.name} in ${loc.name}, ${stateName}` : `${cat.name} in ${loc.name}`;
+  const stateLoc = loc.parent?.parent;
+  const stateName = stateLoc?.name ?? "";
+  // Titles use "City, ST" — the pattern local queries are typed in.
+  const st = stateLoc?.code ?? stateName;
+  const title = st ? `${cat.name} in ${loc.name}, ${st}` : `${cat.name} in ${loc.name}`;
   return {
     title,
     description: `Find ${cat.name.toLowerCase()} in ${loc.name}${stateName ? `, ${stateName}` : ""}. Compare listings, reviews and contact details.`,
@@ -145,6 +149,15 @@ export default async function IntentPage({
           </div>
         </>
       )}
+
+      {/* Lateral local links: same category in neighboring cities */}
+      <NearbyCityLinks
+        lat={loc.latitude}
+        lng={loc.longitude}
+        excludeCitySlug={loc.slug}
+        categorySlug={p.category}
+        heading={`${cat.name} near ${loc.name}`}
+      />
     </div>
   );
 }
