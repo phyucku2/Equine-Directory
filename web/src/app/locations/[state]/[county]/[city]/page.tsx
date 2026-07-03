@@ -8,6 +8,7 @@ import { BusinessCard } from "@/components/business/BusinessCard";
 import { FeaturedSpotlights } from "@/components/business/FeaturedSpotlights";
 import { getActiveSpotlightsForLocation } from "@/lib/db/spotlight";
 import { Pagination } from "@/components/Pagination";
+import { NearbyCityLinks } from "@/components/NearbyCityLinks";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
@@ -21,9 +22,13 @@ export async function generateMetadata({
   const loc = await getCityBySlug(state, county, city);
   if (!loc) return { title: "City not found" };
   const count = await countByLocation(loc.id);
+  // "City, ST" matches how people actually search local queries; fall back to
+  // the full state name when a code isn't seeded.
+  const stateLoc = loc.parent?.parent;
+  const st = stateLoc?.code ?? stateLoc?.name ?? "";
   return {
-    title: `Horse Stables in ${loc.name}, FL`,
-    description: `Find horse stables and barns in ${loc.name}, Florida — boarding, training, and facilities near you.`,
+    title: `Horse Stables in ${loc.name}${st ? `, ${st}` : ""}`,
+    description: `Find horse stables and barns in ${loc.name}${stateLoc ? `, ${stateLoc.name}` : ""} — boarding, training, and facilities near you.`,
     robots: robots(isHubIndexable(count)),
     alternates: { canonical: absoluteUrl(cityUrl(state, county, city)) },
   };
@@ -55,12 +60,15 @@ export default async function CityPage({
       <Breadcrumbs
         items={[
           { name: "Home", url: "/" },
-          { name: stateLoc?.name ?? "Florida", url: stateUrl(state) },
+          ...(stateLoc ? [{ name: stateLoc.name, url: stateUrl(state) }] : []),
           ...(countyLoc ? [{ name: countyLoc.name, url: countyUrl(state, county) }] : []),
           { name: loc.name, url: cityUrl(state, county, city) },
         ]}
       />
-      <h1 className="mt-4 text-3xl font-semibold text-pine">Horse stables in {loc.name}, FL</h1>
+      <h1 className="mt-4 text-3xl font-semibold text-pine">
+        Horse stables in {loc.name}
+        {stateLoc?.code ? `, ${stateLoc.code}` : ""}
+      </h1>
       <p className="mt-1 text-ink/55">
         {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
@@ -81,6 +89,14 @@ export default async function CityPage({
           <Pagination basePath={cityUrl(state, county, city)} page={results.page} totalPages={results.totalPages} />
         </>
       )}
+
+      {/* Lateral local links — the internal mesh Google follows between cities */}
+      <NearbyCityLinks
+        lat={loc.latitude}
+        lng={loc.longitude}
+        excludeCitySlug={loc.slug}
+        heading={`Stables in cities near ${loc.name}`}
+      />
     </div>
   );
 }
