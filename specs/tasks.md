@@ -78,6 +78,12 @@
       filter, category hubs + index, intent pages, sitemaps, saved-search categories.
       Plus **BASIC $9/yr entry tier** (Goal 6) below Verified across schema/
       entitlements/plan UI/Stripe config/admin grants.
+- [x] T43b (2026-07-03) Zillow-scale map: viewport (bbox) loading on /api/map with
+      CDN-friendly grid-rounded boxes; refetch-on-pan in MapView.
+- [x] T43c (2026-07-03) Goal-7 upsells: **camp advertising** ($75/season → Featured
+      camps rail on /events; Stripe + webhook + admin grant) and **website-builder
+      funnel** (owner Website tab lead form $99/$299 + $49.99/yr; embeddable
+      Certified badge `/api/badge/[slug].svg` as the backlink magnet).
 - [ ] T43 Phase-2 categories: grooming/care, transportation, remaining products (apparel)
 - [ ] T44 FAQ schema on category pages; guides/blog scaffolding; newsletter capture
 - [ ] T45 Google Business + Yelp Fusion API enrichment (cached)

@@ -1,5 +1,11 @@
 # Website Builder Pipeline — Spec
 
+> **Shipped 2026-07-03 (funnel-first slice):** owner **Website tab** with the
+> pre-priced lead form (Starter $99 / Premium $299 + $49.99/yr maintenance →
+> admin notification, manual fulfillment) and the **embeddable Certified badge**
+> (`/api/badge/[slug].svg` + copy-paste snippet, live real-stars variant).
+> The multi-tenant site builder below remains the future ultracode build.
+
 Productized barn websites ($99–299 one-time build + $49.99/yr managed
 hosting/maintenance). The key automation: **the claimed listing already holds
 ~80% of the content** (name, NAP, photos, logo, facets, pricing, trainers,

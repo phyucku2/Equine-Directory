@@ -203,9 +203,20 @@ export function MapView() {
     cardRefsMobile.current[slug]?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   };
 
-  // Load data (independent of the map, so the list works even without a key).
-  useEffect(() => {
-    fetch("/api/map")
+  // Fetch listings, optionally scoped to a viewport bbox (Zillow-style). The
+  // initial call has no bbox (national, capped) so the list works without a map
+  // key; once the map settles on a viewport, refetches replace the set with the
+  // pins in view. In-flight requests are aborted when a newer viewport lands.
+  const fetchAbortRef = useRef<AbortController | null>(null);
+  const lastBboxUrlRef = useRef<string | null>(null);
+
+  const loadItems = (bboxUrl: string) => {
+    if (bboxUrl === lastBboxUrlRef.current) return;
+    lastBboxUrlRef.current = bboxUrl;
+    fetchAbortRef.current?.abort();
+    const ctrl = new AbortController();
+    fetchAbortRef.current = ctrl;
+    fetch(bboxUrl, { signal: ctrl.signal })
       .then((r) => r.json())
       .then((g) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -221,7 +232,16 @@ export function MapView() {
         setItems(list);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        if (err?.name !== "AbortError") setLoading(false);
+      });
+  };
+
+  // Initial national load (independent of the map, so the list works even
+  // without a key).
+  useEffect(() => {
+    loadItems("/api/map");
+     
   }, []);
 
   // Merge in the user's saved business ids so hearts on the cards render filled.
@@ -377,6 +397,40 @@ export function MapView() {
     clustererRef.current.addMarkers(markers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtered, mapReady]);
+
+  // Refetch pins for the viewport whenever the map settles (Zillow-style),
+  // debounced past the idle event. Bboxes are rounded OUTWARD to a 0.02° grid
+  // (~2 km) so pan jitter maps to the same URL and reuses the CDN-cached
+  // response. Very wide views (zoomed way out) fall back to the national fetch —
+  // the server would reject the huge box anyway.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const GRID = 0.02;
+    const snap = (v: number, up: boolean) =>
+      ((up ? Math.ceil(v / GRID) : Math.floor(v / GRID)) * GRID).toFixed(2);
+    const listener = map.addListener("idle", () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const b = map.getBounds?.();
+        if (!b) return;
+        const ne = b.getNorthEast();
+        const sw = b.getSouthWest();
+        if (ne.lng() - sw.lng() > 40 || ne.lat() - sw.lat() > 25) {
+          loadItems("/api/map");
+          return;
+        }
+        const bbox = [snap(sw.lng(), false), snap(sw.lat(), false), snap(ne.lng(), true), snap(ne.lat(), true)];
+        loadItems(`/api/map?bbox=${bbox.join(",")}`);
+      }, 350);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      listener?.remove?.();
+    };
+     
+  }, [mapReady]);
 
   // Center the initial map view on the visitor once we know where they are,
   // instead of always showing the hardcoded DEFAULT_CENTER (Broward) for

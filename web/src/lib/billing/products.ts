@@ -19,7 +19,8 @@ export type PlanRequest =
   | { kind: "verified"; cycle: "monthly" | "yearly" }
   | { kind: "trainerSeat"; quantity: number }
   | { kind: "events" }
-  | { kind: "spotlight"; locationId: string; weeks: number };
+  | { kind: "spotlight"; locationId: string; weeks: number }
+  | { kind: "campAd" };
 
 // Stripe price IDs, resolved from env. Each is the recurring/one-off price you
 // create once in the Stripe dashboard (or via `stripe prices create`). Absent
@@ -31,6 +32,7 @@ export const STRIPE_PRICE_IDS = {
   trainerSeatYearly: process.env.STRIPE_PRICE_TRAINER_SEAT_YEARLY,
   eventsYearly: process.env.STRIPE_PRICE_EVENTS_YEARLY,
   spotlightWeekly: process.env.STRIPE_PRICE_SPOTLIGHT_WEEKLY,
+  campAdSeasonal: process.env.STRIPE_PRICE_CAMP_AD_SEASONAL,
 } as const;
 
 // Stripe checkout metadata we attach so the webhook can reconstruct what was
@@ -142,6 +144,22 @@ export function checkoutPlanFor(businessId: string, req: PlanRequest): CheckoutP
           amountCents: String(amountCents),
         },
         label: "Events plan",
+        amountCents,
+      };
+    }
+    case "campAd": {
+      const price = requirePrice(STRIPE_PRICE_IDS.campAdSeasonal, "campAdSeasonal");
+      const amountCents = PRICES.campAd.seasonal;
+      // One-off seasonal purchase: featured camp placement for CAMP_AD_SEASON_DAYS.
+      return {
+        mode: "payment",
+        lineItems: [{ price, quantity: 1 }],
+        metadata: {
+          businessId,
+          planKind: "campAd",
+          amountCents: String(amountCents),
+        },
+        label: "Camp ad (seasonal)",
         amountCents,
       };
     }

@@ -24,7 +24,16 @@ export const PRICES = {
   trainerSeat: { yearly: 1000 },
   events: { yearly: 4900 },
   spotlight: { weekly: 2500 },
+  // Marketing upsells (Goal 7 / specs/growth-and-pipeline.md §4).
+  // Camp ad: featured placement in the events calendar's camp rail for a season.
+  campAd: { seasonal: 7500 },
+  // Website builder service: one-time build + yearly managed hosting/maintenance
+  // (specs/website-builder.md). Lead-funnel prices; fulfillment is manual for now.
+  websiteBuild: { starter: 9900, premium: 29900, maintenanceYearly: 4999 },
 } as const;
+
+// How long a seasonal camp ad runs (~one season).
+export const CAMP_AD_SEASON_DAYS = 120;
 
 // ─────────────────────────── Entitlements ───────────────────────────
 

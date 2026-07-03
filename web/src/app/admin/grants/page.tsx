@@ -7,7 +7,8 @@ import { isAdmin } from "@/lib/auth/admin";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { businessUrl } from "@/lib/urls";
-import { grantTier, addTrainerSeats, createSpotlight, expireStaleSpotlights } from "@/lib/db/grants";
+import { grantTier, addTrainerSeats, createSpotlight, expireStaleSpotlights, recordPurchase } from "@/lib/db/grants";
+import { CAMP_AD_SEASON_DAYS } from "@/lib/entitlements";
 import { BILLING_ENABLED } from "@/lib/billing/beta";
 
 export const metadata: Metadata = { title: "Manual grants", robots: "noindex,nofollow" };
@@ -83,6 +84,22 @@ async function grantSpotlightAction(formData: FormData) {
   redirect(`/admin/grants?ok=spotlight&biz=${biz.slug}&active=${result.active ? "1" : "0"}`);
 }
 
+async function grantCampAdAction(formData: FormData) {
+  "use server";
+  if (!(await isAdmin())) redirect("/admin/login");
+  const biz = await findBusiness(String(formData.get("business") ?? ""));
+  if (!biz) redirect("/admin/grants?error=notfound");
+  const expiresAt = new Date(Date.now() + CAMP_AD_SEASON_DAYS * 24 * 60 * 60 * 1000);
+  await recordPurchase({
+    businessId: biz.id,
+    product: "camp-ad",
+    amountCents: 0, // beta grant — no payment
+    expiresAt,
+  });
+  revalidatePath("/events");
+  redirect(`/admin/grants?ok=campad&biz=${biz.slug}`);
+}
+
 async function expireAction() {
   "use server";
   if (!(await isAdmin())) redirect("/admin/login");
@@ -129,6 +146,8 @@ export default async function AdminGrantsPage({
             ? `Spotlight granted to ${sp.biz} (active now).`
             : `Spotlight granted to ${sp.biz} — queued (city is at the 3-active cap; it activates as a slot frees).`,
       };
+    if (sp.ok === "campad")
+      return { cls: "bg-emerald-100 text-emerald-900", text: `Camp ad granted to ${sp.biz} (one season).` };
     if (sp.ok === "sweep")
       return { cls: "bg-blue-100 text-blue-900", text: `Sweep done: ${sp.expired} expired, ${sp.promoted} promoted.` };
     return null;
@@ -203,6 +222,18 @@ export default async function AdminGrantsPage({
           </label>
           <input name="locationId" placeholder="defaults to barn city" className={`mt-1 ${field}`} />
           <button className={`mt-4 ${primaryBtn}`}>Grant spotlight</button>
+        </form>
+
+        {/* Grant camp ad */}
+        <form action={grantCampAdAction} className={card}>
+          <h2 className="font-semibold text-stone-900">Grant camp ad</h2>
+          <p className="mt-0.5 text-xs text-stone-500">
+            Featured-camps rail on the events calendar for one season (~{CAMP_AD_SEASON_DAYS} days).
+            The barn&apos;s published camp events appear there.
+          </p>
+          <label className="mt-3 block text-xs font-medium text-stone-600">Business (slug or id)</label>
+          <input name="business" required placeholder="happy-trails-stables" className={`mt-1 ${field}`} />
+          <button className={`mt-4 ${primaryBtn}`}>Grant camp ad</button>
         </form>
 
         {/* Expiry sweep */}

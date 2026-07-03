@@ -14,7 +14,8 @@ type PlanRequest =
   | { kind: "verified"; cycle: "monthly" | "yearly" }
   | { kind: "trainerSeat"; quantity: number }
   | { kind: "events" }
-  | { kind: "spotlight"; locationId: string; weeks: number };
+  | { kind: "spotlight"; locationId: string; weeks: number }
+  | { kind: "campAd" };
 
 const SPOTLIGHT_MAX_WEEKS = 52;
 const TRAINER_SEAT_MAX = 50;
@@ -32,6 +33,7 @@ function parse(body: Record<string, unknown>): PlanRequest | null {
     return { kind, quantity };
   }
   if (kind === "events") return { kind };
+  if (kind === "campAd") return { kind };
   if (kind === "spotlight") {
     const locationId = typeof body.locationId === "string" ? body.locationId.trim() : "";
     const weeks = Number(body.weeks);
@@ -60,6 +62,8 @@ function describe(req: PlanRequest): { label: string; amountCents: number } {
       };
     case "events":
       return { label: "Events plan", amountCents: PRICES.events.yearly };
+    case "campAd":
+      return { label: "Camp ad (seasonal)", amountCents: PRICES.campAd.seasonal };
     case "spotlight":
       return {
         label: `Spotlight · ${req.weeks} week(s)`,

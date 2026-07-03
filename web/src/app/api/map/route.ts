@@ -1,9 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_CATEGORY_WHERE, PUBLIC_CATEGORY_SLUGS, STABLES_SLUG, NOT_NON_BARN_NAME } from "@/lib/db/business";
 import { getEntitlements } from "@/lib/entitlements";
 
-export const revalidate = 300;
+// Reading request.nextUrl makes this handler dynamic; the CDN still caches each
+// bbox URL via the Cache-Control header below (the client rounds bboxes to a
+// coarse grid so pan-jitter reuses cached URLs).
+export const dynamic = "force-dynamic";
 
 // Business ids with an active Spotlight covering now (monetization-tiers.md). The
 // map flags these so featured pins can be hoisted/styled. Capped per city is a
@@ -16,11 +19,33 @@ async function activeSpotlightBusinessIds(now: Date): Promise<Set<string>> {
   return new Set(rows.map((r) => r.businessId));
 }
 
+// Viewport bounding box, parsed from ?bbox=west,south,east,north. Invalid or
+// absurd boxes fall back to the legacy no-bbox (national, capped) response.
+function parseBbox(raw: string | null): { west: number; south: number; east: number; north: number } | null {
+  if (!raw) return null;
+  const parts = raw.split(",").map(Number);
+  if (parts.length !== 4 || !parts.every(Number.isFinite)) return null;
+  const [west, south, east, north] = parts;
+  if (west >= east || south >= north) return null;
+  if (south < -90 || north > 90 || west < -180 || east > 180) return null;
+  // A box spanning most of the country is the national view — the legacy capped
+  // query (quality-first) serves that better than a box scan.
+  if (east - west > 40 || north - south > 25) return null;
+  return { west, south, east, north };
+}
+
+// Per-request row caps. Viewport requests are dense but local; the no-bbox
+// national fallback keeps the historical cap.
+const BBOX_TAKE = 800;
+const NATIONAL_TAKE = 2000;
+
 // GET /api/map — lightweight GeoJSON of published catalog listings (boarding,
 // training, vets, farriers, tack, feed) for the map view. The client filters by
-// service segment via the categorySlugs feature property.
-export async function GET() {
+// service segment via the categorySlugs feature property. Pass ?bbox=w,s,e,n to
+// scope pins to the current viewport (Zillow-style refetch-on-pan).
+export async function GET(request: NextRequest) {
   const now = new Date();
+  const bbox = parseBbox(request.nextUrl.searchParams.get("bbox"));
   const spotlightIds = await activeSpotlightBusinessIds(now);
   const rows = await prisma.business.findMany({
     where: {
@@ -29,6 +54,12 @@ export async function GET() {
         some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: { in: PUBLIC_CATEGORY_SLUGS } } },
       },
       ...NOT_NON_BARN_NAME,
+      ...(bbox
+        ? {
+            latitude: { gte: bbox.south, lte: bbox.north },
+            longitude: { gte: bbox.west, lte: bbox.east },
+          }
+        : {}),
     },
     // Quality-first ordering so the `take` cap truncates the tail, not at random.
     orderBy: [
@@ -75,7 +106,7 @@ export async function GET() {
       // Logo (rank -1) sorts first, then the primary photo — split below.
       images: { select: { url: true, isLogo: true }, orderBy: { rank: "asc" }, take: 2 },
     },
-    take: 2000,
+    take: bbox ? BBOX_TAKE : NATIONAL_TAKE,
   });
 
   const features = rows.map((b) => {

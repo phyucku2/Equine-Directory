@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { getUpcomingEvents, eventEnd } from "@/lib/db/events";
+import { getUpcomingEvents, getFeaturedCamps, eventEnd } from "@/lib/db/events";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { EventListItem } from "@/components/events/EventListItem";
 import { eventsUrl, absoluteUrl } from "@/lib/urls";
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 export default async function EventsCalendarPage() {
-  const events = await getUpcomingEvents();
+  const [events, featuredCamps] = await Promise.all([getUpcomingEvents(), getFeaturedCamps()]);
 
   // Group upcoming events by month for a simple calendar/list view.
   const groups = new Map<string, { label: string; key: string; items: typeof events }>();
@@ -41,6 +41,23 @@ export default async function EventsCalendarPage() {
       <p className="mt-1 text-ink/55">
         Shows, clinics, camps, and more at stables across the country.
       </p>
+
+      {/* Sponsored camp rail (Goal 7 camp advertising) */}
+      {featuredCamps.length > 0 && (
+        <section className="mt-8 rounded-2xl border border-brass/30 bg-brass/5 p-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-brass">
+              Featured camps
+            </h2>
+            <span className="text-[11px] text-ink/40">Sponsored</span>
+          </div>
+          <ul className="mt-3 space-y-3">
+            {featuredCamps.map((e) => (
+              <EventListItem key={e.id} event={e} showBarn />
+            ))}
+          </ul>
+        </section>
+      )}
 
       {events.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">
