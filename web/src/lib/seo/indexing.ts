@@ -6,6 +6,11 @@
 import type { BusinessDetail } from "@/lib/db/business";
 
 const MIN_DESCRIPTION_LEN = 120;
+// Google review count that stands in for a rich description: a listing with
+// real-world social proof + contact + hours/map/facets is a useful page, not
+// thin content (the crawled dataset almost never has editorial descriptions,
+// so requiring one indexed ZERO listings in production).
+const MIN_REVIEWS_FOR_INDEX = 3;
 
 export interface MinIndexableBusiness {
   isPublished: boolean;
@@ -17,13 +22,17 @@ export interface MinIndexableBusiness {
 }
 
 // A published business is publishable because it has >=1 grade-3/approved
-// category. It becomes *indexable* once it also clears a content-quality bar.
+// category. It becomes *indexable* once it also clears a content-quality bar:
+// verified/claimed, OR contact info plus either a rich description or real
+// review-count social proof.
 export function isBusinessIndexable(b: MinIndexableBusiness): boolean {
   if (!b.isPublished) return false;
   if (b.verificationBadge && b.verificationBadge !== "UNVERIFIED") return true;
-  const hasRichDescription = (b.description?.trim().length ?? 0) >= MIN_DESCRIPTION_LEN;
   const hasContact = Boolean(b.website || b.phone);
-  return hasRichDescription && hasContact;
+  if (!hasContact) return false;
+  const hasRichDescription = (b.description?.trim().length ?? 0) >= MIN_DESCRIPTION_LEN;
+  const hasSocialProof = b.reviewCount >= MIN_REVIEWS_FOR_INDEX;
+  return hasRichDescription || hasSocialProof;
 }
 
 export function isBusinessDetailIndexable(b: BusinessDetail): boolean {
