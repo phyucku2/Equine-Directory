@@ -4,7 +4,7 @@ import { stripe, STRIPE_WEBHOOK_SECRET } from "@/lib/billing/stripe";
 import { prisma } from "@/lib/prisma";
 import type { Prisma, SubTier, SubStatus, VerificationBadge } from "@prisma/client";
 import { createSpotlight, recordPurchase } from "@/lib/db/grants";
-import { PRICES } from "@/lib/entitlements";
+import { PRICES, CAMP_AD_SEASON_DAYS } from "@/lib/entitlements";
 
 // The Stripe webhook — the ONLY writer of paid state. It reconciles verified
 // Stripe events into:
@@ -245,6 +245,24 @@ async function reconcileSpotlightPurchase(
   });
 }
 
+// A seasonal camp-ad purchase (Goal 7): one Purchase ledger row whose expiresAt
+// bounds the placement window. The events calendar reads active "camp-ad" rows
+// to build its Featured-camps rail — no per-event state to maintain.
+async function reconcileCampAdPurchase(
+  businessId: string,
+  paymentId: string,
+  session: Stripe.Checkout.Session,
+): Promise<void> {
+  const expiresAt = new Date(Date.now() + CAMP_AD_SEASON_DAYS * 24 * 60 * 60 * 1000);
+  await recordPurchase({
+    businessId,
+    product: "camp-ad",
+    amountCents: session.amount_total ?? PRICES.campAd.seasonal,
+    stripePaymentId: paymentId,
+    expiresAt,
+  });
+}
+
 export async function POST(request: Request) {
   if (!stripe) {
     return NextResponse.json({ error: "Billing is disabled" }, { status: 503 });
@@ -286,6 +304,9 @@ export async function POST(request: Request) {
         if (session.metadata?.planKind === "spotlight") {
           // Spotlight add-on: create the window (cap-aware) + a Purchase row.
           await reconcileSpotlightPurchase(businessId, paymentId, session);
+        } else if (session.metadata?.planKind === "campAd") {
+          // Seasonal camp ad: Purchase row bounds the placement window.
+          await reconcileCampAdPurchase(businessId, paymentId, session);
         } else {
           // One-off "featured placement". Duration via metadata, default 30d.
           const days = Number(session.metadata?.featuredDays ?? 30) || 30;

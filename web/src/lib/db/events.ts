@@ -94,6 +94,34 @@ export async function getPublicEvent(
   return event;
 }
 
+// Featured camps (Goal 7 camp advertising): camp-type events from barns holding
+// an active seasonal "camp-ad" Purchase. Shown as a sponsored rail at the top of
+// the events calendar. The Purchase row's expiresAt bounds the placement window,
+// so expiry is on-read — nothing to schedule.
+export async function getFeaturedCamps(
+  now: Date = new Date(),
+  take = 4,
+): Promise<PublicEvent[]> {
+  const active = await prisma.purchase.findMany({
+    where: { product: "camp-ad", OR: [{ expiresAt: null }, { expiresAt: { gte: now } }] },
+    select: { businessId: true },
+  });
+  if (active.length === 0) return [];
+  const businessIds = [...new Set(active.map((p) => p.businessId))];
+  const rows = await prisma.event.findMany({
+    where: {
+      businessId: { in: businessIds },
+      isPublished: true,
+      type: { contains: "camp", mode: "insensitive" },
+      OR: [{ endDate: { gte: now } }, { endDate: null, startDate: { gte: now } }],
+    },
+    orderBy: [{ startDate: "asc" }],
+    include: publicEventInclude,
+    take: take * 2,
+  });
+  return rows.filter((e) => entitledForEvents(e.business)).slice(0, take);
+}
+
 // Published, currently-entitled, upcoming events for the sitemap.
 export async function getEventsForSitemap(now: Date = new Date()): Promise<PublicEvent[]> {
   const rows = await prisma.event.findMany({

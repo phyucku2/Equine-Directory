@@ -262,6 +262,24 @@ export function PlanPanel({
         </div>
       </div>
 
+      {/* Camp advertising (Goal 7): seasonal featured placement on the events calendar */}
+      <div className="rounded-xl border border-leather/15 p-4">
+        <p className="text-sm font-semibold text-pine">Camp advertising</p>
+        <p className="mt-0.5 text-xs text-ink/55">
+          Your camps appear in the <span className="font-medium">Featured camps</span> rail at the
+          top of the events calendar for a season (~4 months) ·{" "}
+          {money(PRICES.campAd.seasonal)}/season. Requires the Events plan to publish camps.
+        </p>
+        <button
+          type="button"
+          disabled={status.state === "busy"}
+          onClick={() => request({ kind: "campAd" })}
+          className="mt-3 rounded-lg border border-leather/20 px-4 py-2 text-sm font-medium text-pine transition hover:border-brass/50 disabled:opacity-50"
+        >
+          {ctaLabel} · {money(PRICES.campAd.seasonal)}/season
+        </button>
+      </div>
+
       {status.state === "done" && <p className="text-sm text-pine">{status.message}</p>}
       {status.state === "error" && <p className="text-sm text-red-600">{status.message}</p>}
     </div>

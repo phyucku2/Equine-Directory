@@ -18,6 +18,7 @@ const TABS: { seg: string; label: string }[] = [
   { seg: "events", label: "Events" },
   { seg: "hours", label: "Hours" },
   { seg: "reviews", label: "Reviews & inbox" },
+  { seg: "website", label: "Website" },
   { seg: "plan", label: "Plan & upgrade" },
 ];
 
