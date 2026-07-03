@@ -18,6 +18,8 @@ import type { SubTier } from "@prisma/client";
 // Single source of truth for prices. Easy to change; consumed by the Plan/Upgrade
 // UI and the Stripe product/checkout layer (stage 4).
 export const PRICES = {
+  // Entry tier (Goal 6: subscriptions start at $9/yr). Yearly only.
+  basic: { yearly: 900 },
   verified: { monthly: 299, yearly: 2500 },
   trainerSeat: { yearly: 1000 },
   events: { yearly: 4900 },
@@ -80,6 +82,15 @@ const FREE_FLAGS: TierFlags = {
   baseTrainers: 0,
 };
 
+// Basic ($9/yr): the cheap "own your listing" entry rung. One owner photo and a
+// live outbound website link — the badge, review collection, logo, and facet
+// editing stay Verified+ so the upsell ladder holds.
+const BASIC_FLAGS: TierFlags = {
+  ...FREE_FLAGS,
+  maxImages: 1,
+  canShowWebsiteLink: true,
+};
+
 const VERIFIED_FLAGS: TierFlags = {
   maxImages: VERIFIED_MAX_IMAGES,
   canLogo: true,
@@ -104,6 +115,7 @@ const EVENTS_FLAGS: TierFlags = {
 // Maps every SubTier (incl. legacy PRO/PREMIUM) to its flag set.
 export const TIER_CONFIG: Record<SubTier, TierFlags> = {
   FREE: FREE_FLAGS,
+  BASIC: BASIC_FLAGS,
   VERIFIED: VERIFIED_FLAGS,
   TEAM: TEAM_FLAGS,
   EVENTS: EVENTS_FLAGS,

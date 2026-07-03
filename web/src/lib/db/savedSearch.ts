@@ -1,6 +1,6 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { STABLES_SLUG } from "@/lib/db/business";
+import { STABLES_SLUG, isPublicCategorySlug } from "@/lib/db/business";
 import type { AlertFrequency, Prisma } from "@prisma/client";
 
 // Saved searches + alerts (M8a / §3). DB logic lives here, mirroring claim.ts.
@@ -69,9 +69,10 @@ function normalizeAmenities(v: unknown): string[] | undefined {
 export function normalizeFilters(raw: unknown): SavedSearchFilters {
   const input = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
 
-  // V1 only supports the stables directory; pin the category so hashes are stable.
-  const category =
-    typeof input.category === "string" && input.category.trim() ? input.category.trim() : STABLES_SLUG;
+  // Any public catalog category may be saved; unknown/hidden slugs fall back to
+  // boarding so hashes stay stable and hidden categories can't be probed.
+  const rawCategory = typeof input.category === "string" ? input.category.trim() : "";
+  const category = isPublicCategorySlug(rawCategory) ? rawCategory : STABLES_SLUG;
 
   const out: SavedSearchFilters = { category };
 

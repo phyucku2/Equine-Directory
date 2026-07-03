@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { PUBLIC_CATEGORY_WHERE, STABLES_SLUG, NOT_NON_BARN_NAME } from "@/lib/db/business";
+import { PUBLIC_CATEGORY_WHERE, PUBLIC_CATEGORY_SLUGS, STABLES_SLUG, NOT_NON_BARN_NAME } from "@/lib/db/business";
 import { getEntitlements } from "@/lib/entitlements";
 
 export const revalidate = 300;
@@ -16,18 +16,26 @@ async function activeSpotlightBusinessIds(now: Date): Promise<Set<string>> {
   return new Set(rows.map((r) => r.businessId));
 }
 
-// GET /api/map — lightweight GeoJSON of published stables for the map view.
+// GET /api/map — lightweight GeoJSON of published catalog listings (boarding,
+// training, vets, farriers, tack, feed) for the map view. The client filters by
+// service segment via the categorySlugs feature property.
 export async function GET() {
   const now = new Date();
   const spotlightIds = await activeSpotlightBusinessIds(now);
   const rows = await prisma.business.findMany({
-    // V1: stables/barns only (boarding facilities). Other crawled categories
-    // (farrier/vet/tack/feed/trainer) stay in the DB, just hidden for now.
     where: {
       isPublished: true,
-      categories: { some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } } },
+      categories: {
+        some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: { in: PUBLIC_CATEGORY_SLUGS } } },
+      },
       ...NOT_NON_BARN_NAME,
     },
+    // Quality-first ordering so the `take` cap truncates the tail, not at random.
+    orderBy: [
+      { isFeatured: "desc" },
+      { rating: { sort: "desc", nulls: "last" } },
+      { reviewCount: "desc" },
+    ],
     select: {
       id: true,
       slug: true,
@@ -57,7 +65,9 @@ export async function GET() {
       subscription: { select: { tier: true, status: true, trainerSeats: true } },
       location: { select: { name: true } },
       categories: {
-        where: PUBLIC_CATEGORY_WHERE,
+        // Catalog categories only — hidden assignments (event-venue, …) must not
+        // leak into the categorySlugs the client filters on.
+        where: { ...PUBLIC_CATEGORY_WHERE, category: { slug: { in: PUBLIC_CATEGORY_SLUGS } } },
         select: { category: { select: { slug: true, name: true } } },
         orderBy: [{ isPrimary: "desc" }, { rank: "asc" }],
         take: 6,
@@ -99,9 +109,14 @@ export async function GET() {
         featured: b.isFeatured || spotlightIds.has(b.id),
         spotlight: spotlightIds.has(b.id),
         verified: b.verificationBadge !== "UNVERIFIED",
-        // V1: every listing is a boarding facility -> "Stalls Available" by
-        // default; owners can override the offering later (Camp/Lessons/…).
-        offering: typeof attrs.offering === "string" ? attrs.offering : "Stalls Available",
+        // Boarding listings default to "Stalls Available"; other verticals show
+        // their category name. Owners can override the offering (Camp/Lessons/…).
+        offering:
+          typeof attrs.offering === "string"
+            ? attrs.offering
+            : b.categories.some((c) => c.category.slug === STABLES_SLUG)
+              ? "Stalls Available"
+              : b.categories[0]?.category.name ?? "Equine services",
         // Owner-derived priceFrom wins; legacy attributes.priceFrom is the fallback.
         priceFrom:
           b.priceFrom != null

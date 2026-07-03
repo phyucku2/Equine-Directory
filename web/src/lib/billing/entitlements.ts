@@ -69,6 +69,8 @@ const BY_TIER: Record<SubTier, Entitlements> = {
   FREE,
   PRO,
   PREMIUM,
+  // Basic ($9/yr entry rung): one owner photo, no analytics/microsite/badge lift.
+  BASIC: { ...FREE, ownerPhotos: true, maxPhotos: 1 },
   VERIFIED: PRO,
   TEAM: PRO,
   EVENTS: PREMIUM,

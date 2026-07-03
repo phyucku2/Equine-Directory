@@ -20,6 +20,10 @@ export type StableMarker = {
   featured: boolean;
   verified: boolean;
   offering: string;
+  /** Primary category display name (e.g. "Farriers") from /api/map. */
+  category?: string;
+  /** Public catalog category slugs — drives the service-segment filter. */
+  categorySlugs?: string[];
   priceFrom: number | null;
   amenities: string[];
   // Structured facets (owner-profile-facets.md). Optional so callers that build a

@@ -9,19 +9,34 @@ function money(cents: number): string {
   return cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`;
 }
 
-type TierKey = "VERIFIED" | "TEAM" | "EVENTS";
+type TierKey = "BASIC" | "VERIFIED" | "TEAM" | "EVENTS";
 
 const TIER_ORDER: Record<SubTier, number> = {
   FREE: 0,
-  VERIFIED: 1,
-  TEAM: 2,
-  EVENTS: 3,
+  BASIC: 1,
+  VERIFIED: 2,
+  TEAM: 3,
+  EVENTS: 4,
   // Legacy aliases (PRO→TEAM, PREMIUM→EVENTS).
-  PRO: 2,
-  PREMIUM: 3,
+  PRO: 3,
+  PREMIUM: 4,
 };
 
-const TIERS: { key: TierKey; name: string; tagline: string; unlocks: string[] }[] = [
+const TIERS: {
+  key: TierKey;
+  name: string;
+  tagline: string;
+  unlocks: string[];
+  // The plan request the card's CTA sends ("cycle" is filled in for verified).
+  request: (cycle: "monthly" | "yearly") => Record<string, unknown>;
+}[] = [
+  {
+    key: "BASIC",
+    name: "Basic",
+    tagline: `${money(PRICES.basic.yearly)}/yr`,
+    unlocks: ["Own your listing", "1 owner photo", "Link to your website"],
+    request: () => ({ kind: "basic" }),
+  },
   {
     key: "VERIFIED",
     name: "Verified",
@@ -33,18 +48,21 @@ const TIERS: { key: TierKey; name: string; tagline: string; unlocks: string[] }[
       "Collect & respond to reviews",
       "Edit rich facets (board, disciplines, programs, …)",
     ],
+    request: (cycle) => ({ kind: "verified", cycle }),
   },
   {
     key: "TEAM",
     name: "Team",
     tagline: `Verified + ${money(PRICES.trainerSeat.yearly)}/yr per trainer`,
     unlocks: ["Everything in Verified", "Trainer profiles — 2 seats included", "Public trainer pages"],
+    request: (cycle) => ({ kind: "verified", cycle }),
   },
   {
     key: "EVENTS",
     name: "Events",
     tagline: `Team + ${money(PRICES.events.yearly)}/yr`,
     unlocks: ["Everything in Team", "Publish events / shows / clinics / camps", "Public event pages + calendar"],
+    request: () => ({ kind: "events" }),
   },
 ];
 
@@ -144,7 +162,7 @@ export function PlanPanel({
       </div>
 
       {/* Tier cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {TIERS.map((t) => {
           const owned = current >= TIER_ORDER[t.key];
           return (
@@ -167,7 +185,7 @@ export function PlanPanel({
               <button
                 type="button"
                 disabled={owned || status.state === "busy"}
-                onClick={() => request({ kind: "verified", cycle })}
+                onClick={() => request(t.request(cycle))}
                 className="mt-4 rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-cream transition hover:bg-pine-light disabled:opacity-50"
               >
                 {owned ? "Active" : ctaLabel}

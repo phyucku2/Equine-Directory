@@ -2,22 +2,22 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   businessCardInclude,
-  STABLES_CATEGORY_SOME,
-  STABLES_SLUG,
+  PUBLIC_CATEGORY_SOME,
+  PUBLIC_CATEGORY_SLUGS,
   NOT_NON_BARN_NAME,
   type BusinessCard,
   type Paginated,
 } from "@/lib/db/business";
 
-// V1: free-text search is stables-only too. Constrain the raw FTS to businesses
-// that carry a published boarding category (mirrors STABLES_BUSINESS_WHERE).
-const STABLES_EXISTS = Prisma.sql`
+// Free-text search spans the whole public catalog. Constrain the raw FTS to
+// businesses that carry a published catalog category (mirrors PUBLIC_BUSINESS_WHERE).
+const PUBLIC_EXISTS = Prisma.sql`
   AND EXISTS (
     SELECT 1 FROM "BusinessCategory" bc
     JOIN "Category" c ON c."id" = bc."categoryId"
     WHERE bc."businessId" = "Business"."id"
       AND bc."reviewStatus" IN ('AUTO_APPROVED', 'APPROVED')
-      AND c."slug" = ${STABLES_SLUG}
+      AND c."slug" IN (${Prisma.join(PUBLIC_CATEGORY_SLUGS)})
   )`;
 
 export interface SearchParams {
@@ -57,7 +57,7 @@ async function rankedIds(q: string, limit: number, offset: number): Promise<stri
         to_tsvector('english', "name" || ' ' || coalesce("description", '')) @@ plainto_tsquery('english', ${q})
         OR "name" % ${q}
       )
-      ${STABLES_EXISTS}
+      ${PUBLIC_EXISTS}
     ORDER BY
       "isFeatured" DESC,
       ts_rank(to_tsvector('english', "name" || ' ' || coalesce("description", '')), plainto_tsquery('english', ${q})) DESC,
@@ -77,7 +77,7 @@ async function countFts(q: string): Promise<number> {
         to_tsvector('english', "name" || ' ' || coalesce("description", '')) @@ plainto_tsquery('english', ${q})
         OR "name" % ${q}
       )
-      ${STABLES_EXISTS}
+      ${PUBLIC_EXISTS}
   `;
   return Number(rows[0]?.count ?? 0);
 }
@@ -87,10 +87,10 @@ function buildWhere(p: SearchParams): Prisma.BusinessWhereInput {
   const where: Prisma.BusinessWhereInput = { isPublished: true };
   const and: Prisma.BusinessWhereInput[] = [];
 
-  // V1: every result must be a stable/barn (boarding facility).
-  and.push({ categories: STABLES_CATEGORY_SOME });
+  // Every result must carry at least one public catalog category.
+  and.push({ categories: PUBLIC_CATEGORY_SOME });
   // Exclude non-barn attractions (goat yoga / petting zoo / …) by name — same
-  // chokepoint as STABLES_BUSINESS_WHERE (post-launch-fixes.md §2).
+  // chokepoint as PUBLIC_BUSINESS_WHERE (post-launch-fixes.md §2).
   and.push(NOT_NON_BARN_NAME);
 
   if (p.categorySlug) {
@@ -151,6 +151,9 @@ export async function getCategoryFacets(p: SearchParams): Promise<FacetCount[]> 
     by: ["categoryId"],
     where: {
       reviewStatus: { in: ["AUTO_APPROVED", "APPROVED"] },
+      // Only count catalog categories — a public business may also carry hidden
+      // category assignments (e.g. event-venue) that must not surface as facets.
+      category: { slug: { in: PUBLIC_CATEGORY_SLUGS } },
       business: base,
     },
     _count: { businessId: true },

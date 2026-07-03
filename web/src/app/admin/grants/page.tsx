@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 // moderation queue's server-action pattern. Every grant writes an AuditLog row.
 
 const GRANT_TIERS: { value: SubTier; label: string }[] = [
+  { value: "BASIC", label: "Basic" },
   { value: "VERIFIED", label: "Verified" },
   { value: "TEAM", label: "Team" },
   { value: "EVENTS", label: "Events" },

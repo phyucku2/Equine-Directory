@@ -7,6 +7,7 @@ import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { StableCard, type StableMarker } from "@/components/stable/StableCard";
 import { SaveSearchButton, type SaveSearchFilters } from "@/components/map/SaveSearchButton";
 import { DISCIPLINES, BOARD_TYPES, TRAINING_TYPES, facetLabel } from "@/lib/facets";
+import { SERVICE_SEGMENTS, segmentByKey, countNoun } from "@/lib/catalog";
 
 const PRICE_OPTIONS = [
   { value: 500, label: "Under $500" },
@@ -70,6 +71,8 @@ export function MapView() {
   const [mapReady, setMapReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  // Zillow-style service-type segment (All · Boarding · Training · Vets · …).
+  const [segment, setSegment] = useState<string>("all");
   const [minRating, setMinRating] = useState<number | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
@@ -94,8 +97,10 @@ export function MapView() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const segSlugs = segmentByKey(segment)?.slugs ?? null;
     const matches = items.filter(
       (s) =>
+        (!segSlugs || (s.categorySlugs ?? []).some((c) => segSlugs.includes(c))) &&
         (!q || `${s.name} ${s.city}`.toLowerCase().includes(q)) &&
         (minRating == null || (s.rating ?? 0) >= minRating) &&
         (!verifiedOnly || s.verified) &&
@@ -113,7 +118,7 @@ export function MapView() {
         haversineKm(visitorGeo.lat, visitorGeo.lng, a.lat, a.lng) -
         haversineKm(visitorGeo.lat, visitorGeo.lng, b.lat, b.lng),
     );
-  }, [items, query, minRating, verifiedOnly, disciplines, boardTypes, trainingTypes, priceMax, flags, visitorGeo]);
+  }, [items, query, segment, minRating, verifiedOnly, disciplines, boardTypes, trainingTypes, priceMax, flags, visitorGeo]);
 
   const activeFilters =
     (minRating != null ? 1 : 0) +
@@ -148,8 +153,12 @@ export function MapView() {
 
   // Snapshot the current filters + map viewport for "Save this search" (M8a).
   // Mirrors the /api/saved-searches filter shape (which mirrors /api/map params).
+  // The saved category is the active segment's primary slug; "all" keeps the
+  // boarding default so existing saved-search hashes stay stable.
   const currentFilters = (): SaveSearchFilters => {
-    const f: SaveSearchFilters = { category: "horse-boarding" };
+    const f: SaveSearchFilters = {
+      category: segmentByKey(segment)?.slugs[0] ?? "horse-boarding",
+    };
     const q = query.trim();
     if (q) f.q = q;
     if (minRating != null) f.rating = minRating;
@@ -417,8 +426,8 @@ export function MapView() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             type="search"
-            placeholder="Search stables by name or city…"
-            aria-label="Search stables"
+            placeholder="Search by name or city…"
+            aria-label="Search listings"
             className="w-full rounded-full border border-leather/15 bg-white px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-brass"
           />
           <button
@@ -436,6 +445,24 @@ export function MapView() {
             )}
           </button>
           <SaveSearchButton filters={currentFilters} />
+        </div>
+        {/* Service-type segments (Zillow "Home type" equivalent) */}
+        <div className={`flex gap-1.5 overflow-x-auto ${NO_SCROLLBAR}`} role="tablist" aria-label="Service type">
+          {[{ key: "all", label: "All" }, ...SERVICE_SEGMENTS].map((seg) => (
+            <button
+              key={seg.key}
+              role="tab"
+              aria-selected={segment === seg.key}
+              onClick={() => setSegment(seg.key)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                segment === seg.key
+                  ? "bg-pine text-cream shadow-sm"
+                  : "bg-white text-ink/65 ring-1 ring-leather/15 hover:text-pine"
+              }`}
+            >
+              {seg.label}
+            </button>
+          ))}
         </div>
         {/* Active filter chips (dismissible) */}
         {activeFilters > 0 && (
@@ -510,14 +537,16 @@ export function MapView() {
         <aside className="hidden w-[420px] shrink-0 flex-col overflow-hidden border-r border-leather/15 lg:flex">
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-sm font-semibold text-ink">
-              {loading ? "Loading…" : `${filtered.length} stable${filtered.length === 1 ? "" : "s"}`}
+              {loading ? "Loading…" : `${filtered.length} ${countNoun(segment, filtered.length)}`}
             </span>
-            <span className="text-xs text-ink/45">Boarding facilities</span>
+            <span className="text-xs text-ink/45">
+              {segmentByKey(segment)?.label ?? "All equine services"}
+            </span>
           </div>
           <div className="grid flex-1 grid-cols-1 content-start gap-3 overflow-y-auto p-3 pt-0">
             {!loading && filtered.length === 0 && (
               <p className="rounded-xl border border-dashed border-leather/30 bg-white p-6 text-center text-sm text-ink/55">
-                No stables match these filters.
+                No listings match these filters.
               </p>
             )}
             {filtered.map((s) => (
@@ -569,7 +598,7 @@ export function MapView() {
             <div className="absolute inset-x-0 bottom-0 z-20 pb-2 lg:hidden">
               <div className="flex items-center justify-between px-3 py-1.5">
                 <span className="rounded-full bg-white/95 px-3 py-1 text-sm font-medium text-ink shadow">
-                  {loading ? "Loading…" : `${filtered.length} stable${filtered.length === 1 ? "" : "s"}`}
+                  {loading ? "Loading…" : `${filtered.length} ${countNoun(segment, filtered.length)}`}
                 </span>
                 <button
                   onClick={() => setView("list")}
@@ -581,7 +610,7 @@ export function MapView() {
               <div className={`flex gap-3 overflow-x-auto px-3 pb-1 ${NO_SCROLLBAR}`}>
                 {!loading && filtered.length === 0 && (
                   <div className="w-full rounded-xl bg-white p-4 text-center text-sm text-ink/55 shadow">
-                    No stables match these filters.
+                    No listings match these filters.
                   </div>
                 )}
                 {filtered.map((s) => (
@@ -610,7 +639,7 @@ export function MapView() {
             <div className="absolute inset-0 z-30 overflow-y-auto bg-cream p-3 lg:hidden">
               <div className="sticky top-0 z-10 -mx-3 mb-2 flex items-center justify-between bg-cream/95 px-3 py-2 backdrop-blur">
                 <span className="text-sm font-medium text-ink">
-                  {filtered.length} stable{filtered.length === 1 ? "" : "s"}
+                  {filtered.length} {countNoun(segment, filtered.length)}
                 </span>
                 <button
                   onClick={() => setView("map")}
