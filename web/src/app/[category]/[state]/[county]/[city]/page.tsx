@@ -154,6 +154,7 @@ export default async function IntentPage({
       <NearbyCityLinks
         lat={loc.latitude}
         lng={loc.longitude}
+        locationId={loc.id}
         excludeCitySlug={loc.slug}
         categorySlug={p.category}
         heading={`${cat.name} near ${loc.name}`}
