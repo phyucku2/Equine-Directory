@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { prisma } from "@/lib/prisma";
 import { getNearbyCities } from "@/lib/db/nearby";
 import { cityUrl, intentUrl } from "@/lib/urls";
 
@@ -7,23 +8,38 @@ import { cityUrl, intentUrl } from "@/lib/urls";
 // page links laterally into its neighbors — the internal-linking mesh Google
 // uses to discover and rank localized pages. When `categorySlug` is given the
 // links target the same category's intent page in each neighbor city.
+//
+// Location rows in production frequently have NULL coordinates (the crawler
+// creates cities without them), so when they're missing we fall back to the
+// centroid of the city's own published listings.
 export async function NearbyCityLinks({
   lat,
   lng,
+  locationId,
   excludeCitySlug,
   categorySlug,
   heading,
 }: {
   lat: number | null;
   lng: number | null;
+  /** Location id, used to derive a listing-centroid when lat/lng are null. */
+  locationId: string;
   excludeCitySlug: string;
   /** Link to /[category]/... intent pages instead of the generic city hubs. */
   categorySlug?: string;
   heading: string;
 }) {
-  if (lat == null || lng == null) return null;
   let cities;
   try {
+    if (lat == null || lng == null) {
+      const centroid = await prisma.business.aggregate({
+        _avg: { latitude: true, longitude: true },
+        where: { locationId, isPublished: true },
+      });
+      lat = centroid._avg.latitude;
+      lng = centroid._avg.longitude;
+    }
+    if (lat == null || lng == null) return null;
     cities = await getNearbyCities(lat, lng, 9);
   } catch {
     return null; // degraded DB — the block is an enhancement, never a blocker

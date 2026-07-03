@@ -94,6 +94,7 @@ export default async function CityPage({
       <NearbyCityLinks
         lat={loc.latitude}
         lng={loc.longitude}
+        locationId={loc.id}
         excludeCitySlug={loc.slug}
         heading={`Stables in cities near ${loc.name}`}
       />
