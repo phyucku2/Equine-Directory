@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 
 // What an owner can request / buy from the Plan tab.
 type PlanRequest =
+  | { kind: "basic" }
   | { kind: "verified"; cycle: "monthly" | "yearly" }
   | { kind: "trainerSeat"; quantity: number }
   | { kind: "events" }
@@ -20,6 +21,7 @@ const TRAINER_SEAT_MAX = 50;
 
 function parse(body: Record<string, unknown>): PlanRequest | null {
   const kind = body.kind;
+  if (kind === "basic") return { kind };
   if (kind === "verified") {
     const cycle = body.cycle === "yearly" ? "yearly" : "monthly";
     return { kind, cycle };
@@ -44,6 +46,8 @@ function parse(body: Record<string, unknown>): PlanRequest | null {
 // admin notification (beta) and the Stripe wiring (stage 4).
 function describe(req: PlanRequest): { label: string; amountCents: number } {
   switch (req.kind) {
+    case "basic":
+      return { label: "Basic plan (yearly)", amountCents: PRICES.basic.yearly };
     case "verified":
       return {
         label: `Verified plan (${req.cycle})`,

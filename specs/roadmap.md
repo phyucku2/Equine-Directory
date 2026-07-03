@@ -2,14 +2,18 @@
 
 > Single source of truth so we stop firefighting and build against a plan.
 >
-> **Decisions (locked 2026-06-26):**
-> - **Scope:** **Broward beta first** → then Florida metros → then national.
+> **Decisions (locked 2026-06-26, amended 2026-07-03 per owner goals):**
+> - **Scope:** **national (48 states)** — the crawler seeds all counties; Broward/FL
+>   remain the densest launch regions. *(Supersedes "Broward beta first".)*
 > - **Monetization:** **build** owner accounts + tiers, but **free during the beta
->   period** (no charging until we flip billing on post-beta).
+>   period** (no charging until we flip billing on post-beta). Ladder starts at
+>   **Basic $9/yr** (Goal 6), then Verified $25/yr → Team → Events (+ Spotlight).
 > - **Primary UX:** **SEO pages + Zillow map (both)** — organic discovery *and* app feel.
 > - **Design:** clean white/black, **lighter-blue accent (`#3b82f6`)** — deliberately
 >   distinct from Zillow's trademark blue (`#006AFF`).
-> - **Catalog:** **V1 = stables/barns (boarding) only**; other crawled data retained, hidden.
+> - **Catalog:** **six public verticals** (Goal 3): boarding, training,
+>   vets, farriers, tack, feed — defined in `web/src/lib/catalog.ts`; other crawled
+>   categories retained, hidden. *(Supersedes "V1 = boarding only".)*
 
 ## Vision
 A clean, mobile-first (80%+), Zillow-style directory of horse **stables/barns** —
@@ -61,8 +65,10 @@ These block everything; both are config, not code.
    `areas` list (Broward → FL metros → states).
 2. **National framing** once the brand/name is finalized; soft geo-personalization
    via Vercel edge headers — never hard-redirect.
-3. **Re-enable other categories** (farrier/vet/tack/feed) as their own category
-   "directories" — the data is already collected, just hidden.
+3. ~~Re-enable other categories~~ **DONE 2026-07-03** — the public catalog now
+   spans six verticals (boarding/training/vets/farriers/tack/feed) with a
+   service-type segment filter on the map, category hubs, intent pages, and
+   sitemaps (`web/src/lib/catalog.ts`).
 4. **Scale levers:** distance/amenity filters, saved searches/alerts, image pipeline,
    and **paid lead-gen** (owner inquiries — the biggest eventual revenue lever).
 

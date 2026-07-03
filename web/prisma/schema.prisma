@@ -105,6 +105,7 @@ enum SubTier {
   FREE
   PRO
   PREMIUM
+  BASIC
   VERIFIED
   TEAM
   EVENTS

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
-import { getByCategory, countByCategory, isStablesSlug, STABLES_SLUG } from "@/lib/db/business";
+import { getByCategory, countByCategory, isPublicCategorySlug, PUBLIC_CATEGORY_SLUGS } from "@/lib/db/business";
 import { categoryUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
@@ -13,8 +13,9 @@ import { robots, isHubIndexable } from "@/lib/seo/indexing";
 export const revalidate = 86400;
 
 export function generateStaticParams() {
-  // V1: only the stables/boarding category is publicly browsable.
-  return [{ category: STABLES_SLUG }];
+  // Every public catalog category gets a pre-rendered hub (boarding, training,
+  // vets, farriers, tack, feed — see src/lib/catalog.ts).
+  return PUBLIC_CATEGORY_SLUGS.map((category) => ({ category }));
 }
 
 export async function generateMetadata({
@@ -44,8 +45,8 @@ export default async function CategoryPage({
 }) {
   const { category } = await params;
   const { page: pageParam } = await searchParams;
-  // V1: hide non-stable category hubs (their data stays in the DB).
-  if (!isStablesSlug(category)) notFound();
+  // Hide non-catalog category hubs (their data stays in the DB).
+  if (!isPublicCategorySlug(category)) notFound();
   const cat = await getCategoryBySlug(category);
   if (!cat) notFound();
 
@@ -74,7 +75,7 @@ export default async function CategoryPage({
 
       {results.items.length === 0 ? (
         <p className="mt-12 rounded-xl border border-dashed border-leather/30 bg-white p-8 text-center text-ink/55">
-          No listings here yet. We&apos;re actively adding new stables — check back soon.
+          No listings here yet. We&apos;re actively adding new businesses — check back soon.
         </p>
       ) : (
         <>

@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { PUBLIC_CATEGORY_SLUGS, isPublicCategorySlug } from "@/lib/catalog";
+
+export { PUBLIC_CATEGORY_SLUGS, isPublicCategorySlug };
 
 const PAGE_SIZE = 24;
 
@@ -9,17 +12,24 @@ export const PUBLIC_CATEGORY_WHERE: Prisma.BusinessCategoryWhereInput = {
   reviewStatus: { in: ["AUTO_APPROVED", "APPROVED"] },
 };
 
-// V1 scope: the public directory shows stables/barns (boarding facilities) ONLY.
-// Other crawled categories (vets, farriers, trainers, tack, feed…) stay in the DB
-// but are hidden until we launch their directories. This is the single source of
-// truth — every public business query and /api/map references it.
+// Public catalog scope: the six service verticals (boarding, training, vets,
+// farriers, tack, feed) defined in src/lib/catalog.ts. Other crawled categories
+// stay in the DB but are hidden until their data is verified. This is the single
+// source of truth — every public business query and /api/map references it.
+// Boarding remains the flagship vertical (brand, featured rails, reports).
 export const STABLES_SLUG = "horse-boarding";
 
 export function isStablesSlug(slug: string): boolean {
   return slug === STABLES_SLUG;
 }
 
-// A business is publicly listed only if it has a published boarding category.
+// A business is publicly listed if it has a published category in the catalog.
+export const PUBLIC_CATEGORY_SOME: Prisma.BusinessCategoryListRelationFilter = {
+  some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: { in: PUBLIC_CATEGORY_SLUGS } } },
+};
+
+// Boarding-only relation filter, kept for the stables-specific surfaces
+// (featured barns, "stables near you", not-a-stable reports).
 export const STABLES_CATEGORY_SOME: Prisma.BusinessCategoryListRelationFilter = {
   some: { ...PUBLIC_CATEGORY_WHERE, category: { slug: STABLES_SLUG } },
 };
@@ -71,6 +81,16 @@ export const NOT_NON_BARN_NAME: Prisma.BusinessWhereInput = {
 export const STABLES_BUSINESS_WHERE: Prisma.BusinessWhereInput = {
   isPublished: true,
   categories: STABLES_CATEGORY_SOME,
+  ...NOT_NON_BARN_NAME,
+};
+
+// Directory-wide public where: any published business carrying at least one
+// approved catalog category. The non-barn name screen applies across the board —
+// the keywords are agritourism/attraction signals that don't belong in any of
+// the six verticals.
+export const PUBLIC_BUSINESS_WHERE: Prisma.BusinessWhereInput = {
+  isPublished: true,
+  categories: PUBLIC_CATEGORY_SOME,
   ...NOT_NON_BARN_NAME,
 };
 
@@ -198,7 +218,7 @@ export function getByLocation(locationId: string, page = 1) {
   return paginateBusinesses(
     {
       isPublished: true,
-      categories: STABLES_CATEGORY_SOME,
+      categories: PUBLIC_CATEGORY_SOME,
       ...NOT_NON_BARN_NAME,
       OR: [
         { locationId },
@@ -287,7 +307,7 @@ export function countByLocation(locationId: string): Promise<number> {
   return prisma.business.count({
     where: {
       isPublished: true,
-      categories: STABLES_CATEGORY_SOME,
+      categories: PUBLIC_CATEGORY_SOME,
       ...NOT_NON_BARN_NAME,
       OR: [
         { locationId },

@@ -27,6 +27,8 @@ const TIER_BADGE: Record<SubTier, VerificationBadge> = {
   PRO: "TRUSTED",
   PREMIUM: "PREMIUM",
   // Monetization ladder (specs/monetization-tiers.md): a paid tier verifies the barn.
+  // BASIC is the $9/yr entry rung — no badge upgrade (the badge is Verified's draw).
+  BASIC: "UNVERIFIED",
   VERIFIED: "VERIFIED",
   TEAM: "TRUSTED",
   EVENTS: "PREMIUM",
@@ -53,6 +55,7 @@ function tierFromSubscription(sub: Stripe.Subscription): SubTier {
   if (candidates.includes("EVENTS") || candidates.includes("PREMIUM")) return "EVENTS";
   if (candidates.includes("TEAM") || candidates.includes("PRO")) return "TEAM";
   if (candidates.includes("VERIFIED")) return "VERIFIED";
+  if (candidates.includes("BASIC")) return "BASIC";
   return "FREE";
 }
 

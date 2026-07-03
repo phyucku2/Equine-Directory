@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
 import { getCityBySlug } from "@/lib/db/location";
-import { getByCategoryAndLocation, isStablesSlug } from "@/lib/db/business";
+import { getByCategoryAndLocation, isPublicCategorySlug } from "@/lib/db/business";
 import { getIntentCombos } from "@/lib/db/intent";
 import { intentUrl, categoryUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -21,7 +21,7 @@ export async function generateStaticParams() {
   try {
     const combos = await getIntentCombos(200);
     return combos
-      .filter((c) => isStablesSlug(c.category))
+      .filter((c) => isPublicCategorySlug(c.category))
       .map((c) => ({
       category: c.category,
       state: c.state,
@@ -46,10 +46,11 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { cat, loc } = await load(p);
   if (!cat || !loc) return { title: "Not found" };
   const count = await getByCategoryAndLocation(p.category, loc.id, 1);
-  const title = `${cat.name} in ${loc.name}, FL`;
+  const stateName = loc.parent?.parent?.name ?? "";
+  const title = stateName ? `${cat.name} in ${loc.name}, ${stateName}` : `${cat.name} in ${loc.name}`;
   return {
     title,
-    description: `Find ${cat.name.toLowerCase()} in ${loc.name}, Florida. Compare listings, reviews and contact details.`,
+    description: `Find ${cat.name.toLowerCase()} in ${loc.name}${stateName ? `, ${stateName}` : ""}. Compare listings, reviews and contact details.`,
     robots: robots(isHubIndexable(count.total)),
     alternates: { canonical: absoluteUrl(intentUrl(p.category, p.state, p.county, p.city)) },
   };
@@ -64,8 +65,8 @@ export default async function IntentPage({
 }) {
   const p = await params;
   const { pageParam } = { pageParam: (await searchParams).page };
-  // V1: only stables/boarding hubs are public.
-  if (!isStablesSlug(p.category)) notFound();
+  // Only public catalog category hubs are browsable.
+  if (!isPublicCategorySlug(p.category)) notFound();
   const { cat, loc } = await load(p);
   if (!cat || !loc) notFound();
 
@@ -74,11 +75,12 @@ export default async function IntentPage({
 
   const county = loc.parent;
   const state = county?.parent;
+  const placeName = state ? `${loc.name}, ${state.name}` : loc.name;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       <JsonLd
-        data={collectionLd(`${cat.name} in ${loc.name}, FL`, intentUrl(p.category, p.state, p.county, p.city), results.items)}
+        data={collectionLd(`${cat.name} in ${placeName}`, intentUrl(p.category, p.state, p.county, p.city), results.items)}
       />
       <Breadcrumbs
         items={[
@@ -92,7 +94,7 @@ export default async function IntentPage({
 
       <header className="mt-4">
         <h1 className="text-3xl font-bold text-pine">
-          {cat.name} in {loc.name}, FL
+          {cat.name} in {placeName}
         </h1>
         <p className="mt-1 text-ink/55">
           {results.total} {results.total === 1 ? "listing" : "listings"}
@@ -131,7 +133,7 @@ export default async function IntentPage({
               All {cat.name.toLowerCase()} nationwide →
             </Link>
             <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
-              All stables in {loc.name} →
+              Everything in {loc.name} →
             </Link>
           </div>
         </>

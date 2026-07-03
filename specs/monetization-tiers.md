@@ -10,13 +10,14 @@ manual-grants tiers); the plumbing is built now.
 | Tier (SubTier) | Price | Unlocks (on top of lower tiers) |
 |---|---|---|
 | **FREE** | $0 | crawled/claimed basics: name, map pin, category, hours, public reviews *display*. No owner photos/logo, no review collection, no facet editing. |
+| **BASIC** (entry, Goal 6) | **$9/yr** | own your listing: **1 owner photo** · **outbound website link** on the public listing. No badge/logo/review collection/facet editing — those stay Verified+ so the ladder holds. |
 | **VERIFIED** (Tier 1) | **$2.99/mo or $25/yr** | verified badge · **5 owner images** · **1 logo** · **"Stalls Available" badge** overlay on images · **collect + respond to reviews** + show ratings · **edit rich facets** (disciplines/board/pricing/amenities/security/programs) · lead inbox |
 | **TEAM** (Tier 2) | Tier 1 + **$10/yr per trainer** | **trainer profiles** — **2 seats included**, +$10/yr each beyond 2. Trainer = name + 1 photo + bio (+ disciplines, certs, contact). Public trainer pages. |
 | **EVENTS** (Tier 3) | Tier 2 + (config, ~$49/yr) | publish **events/shows/clinics/camps** (dated) → public **event pages + calendar** |
 | **SPOTLIGHT** (Tier 4, add-on) | **$25/week** | geo-targeted **featured placement** in the barn's **town/city**; **max 3 per city**, auto-rotate weekly |
 
 Pricing lives in `web/src/lib/entitlements.ts` as cents config (easy to change):
-`{ verified: { monthly: 299, yearly: 2500 }, trainerSeat: { yearly: 1000 }, events: { yearly: 4900 }, spotlight: { weekly: 2500 } }`.
+`{ basic: { yearly: 900 }, verified: { monthly: 299, yearly: 2500 }, trainerSeat: { yearly: 1000 }, events: { yearly: 4900 }, spotlight: { weekly: 2500 } }`.
 
 ## Entitlements resolver
 

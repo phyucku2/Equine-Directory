@@ -3,7 +3,18 @@ import { getFeatured } from "@/lib/db/business";
 import { FeaturedStables } from "@/components/home/FeaturedStables";
 import { NearbyStables } from "@/components/home/NearbyStables";
 import { NearbyCities } from "@/components/home/NearbyCities";
-import { cityUrl } from "@/lib/urls";
+import { SERVICE_SEGMENTS } from "@/lib/catalog";
+import { cityUrl, categoryUrl } from "@/lib/urls";
+
+// Homepage blurbs per service segment (label/slugs come from the catalog).
+const SEGMENT_BLURBS: Record<string, string> = {
+  boarding: "Stables & barns with stalls, board, and turnout",
+  training: "Trainers, riding instructors, and training barns",
+  vets: "Large-animal & equine veterinarians",
+  farriers: "Shoeing, trimming, and corrective farriery",
+  tack: "Saddles, bridles, and riding gear",
+  feed: "Feed, hay, and forage suppliers",
+};
 
 export const revalidate = 3600;
 
@@ -48,7 +59,8 @@ export default async function HomePage() {
             Find the right stable for your horse
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-lg text-white/85">
-            Browse and compare horse stables and barns near you — nationwide.
+            Stables, trainers, vets, farriers, tack &amp; feed — compare equine services near you,
+            nationwide.
           </p>
           <form action="/search" className="mx-auto mt-8 flex max-w-xl gap-2">
             <input
@@ -75,6 +87,23 @@ export default async function HomePage() {
       </section>
 
       <div className="mx-auto max-w-6xl px-4">
+        {/* Browse by service — the six public verticals (Goal 3) */}
+        <section className="py-14">
+          <SectionHeading eyebrow="What do you need?" title="Browse by service" />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {SERVICE_SEGMENTS.map((seg) => (
+              <Link
+                key={seg.key}
+                href={categoryUrl(seg.slugs[0])}
+                className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
+              >
+                <h3 className="text-lg font-semibold text-pine">{seg.label}</h3>
+                <p className="mt-1 text-sm text-ink/55">{SEGMENT_BLURBS[seg.key]}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* Featured — local to the visitor (paid/spotlight barns in their area
             first, then the best local barns); server-rendered national set is the
             SEO/no-JS fallback and initial paint. */}

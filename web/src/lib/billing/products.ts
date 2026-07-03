@@ -15,6 +15,7 @@ import { PRICES } from "@/lib/entitlements";
 // The request kinds the Plan tab can send. Mirrors the union in
 // api/owner/businesses/[id]/plan/route.ts (kept in sync intentionally).
 export type PlanRequest =
+  | { kind: "basic" }
   | { kind: "verified"; cycle: "monthly" | "yearly" }
   | { kind: "trainerSeat"; quantity: number }
   | { kind: "events" }
@@ -24,6 +25,7 @@ export type PlanRequest =
 // create once in the Stripe dashboard (or via `stripe prices create`). Absent
 // values surface as a clear "price not configured" error rather than a bad call.
 export const STRIPE_PRICE_IDS = {
+  basicYearly: process.env.STRIPE_PRICE_BASIC_YEARLY,
   verifiedMonthly: process.env.STRIPE_PRICE_VERIFIED_MONTHLY,
   verifiedYearly: process.env.STRIPE_PRICE_VERIFIED_YEARLY,
   trainerSeatYearly: process.env.STRIPE_PRICE_TRAINER_SEAT_YEARLY,
@@ -76,6 +78,22 @@ const VERIFIED_TIER: SubTier = "VERIFIED";
  */
 export function checkoutPlanFor(businessId: string, req: PlanRequest): CheckoutPlan {
   switch (req.kind) {
+    case "basic": {
+      const price = requirePrice(STRIPE_PRICE_IDS.basicYearly, "basicYearly");
+      const amountCents = PRICES.basic.yearly;
+      return {
+        mode: "subscription",
+        lineItems: [{ price, quantity: 1 }],
+        metadata: {
+          businessId,
+          planKind: "basic",
+          tier: "BASIC",
+          amountCents: String(amountCents),
+        },
+        label: "Basic plan (yearly)",
+        amountCents,
+      };
+    }
     case "verified": {
       const price =
         req.cycle === "yearly"

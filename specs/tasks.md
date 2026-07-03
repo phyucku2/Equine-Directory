@@ -73,7 +73,12 @@
 - [ ] T40 Manager analytics dashboard + email alerts
 - [ ] T41 "Trusted" badge: state business-registration cross-check
 - [ ] T42 State expansion GA/SC/NC(+TX): sources, location seeding, sitemaps
-- [ ] T43 Phase-2 categories: grooming/care, transportation, products (tack/feed/apparel)
+- [x] T43a (2026-07-03) Public catalog opened to six verticals — boarding, training,
+      vets, farriers, tack, feed (`web/src/lib/catalog.ts`): map service-segment
+      filter, category hubs + index, intent pages, sitemaps, saved-search categories.
+      Plus **BASIC $9/yr entry tier** (Goal 6) below Verified across schema/
+      entitlements/plan UI/Stripe config/admin grants.
+- [ ] T43 Phase-2 categories: grooming/care, transportation, remaining products (apparel)
 - [ ] T44 FAQ schema on category pages; guides/blog scaffolding; newsletter capture
 - [ ] T45 Google Business + Yelp Fusion API enrichment (cached)
 
