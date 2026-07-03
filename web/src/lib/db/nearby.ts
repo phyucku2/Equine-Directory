@@ -92,36 +92,46 @@ export async function getNearbyCities(
       distance_km: number;
     }[]
   >`
-    SELECT city."name" AS name,
-      city."slug" AS city_slug,
-      county."slug" AS county_slug,
-      state."slug" AS state_slug,
-      COUNT(*)::int AS barn_count,
-      MIN(6371 * acos(LEAST(1, GREATEST(-1,
-        cos(radians(${lat})) * cos(radians(b."latitude")) *
-          cos(radians(b."longitude") - radians(${lng}))
-        + sin(radians(${lat})) * sin(radians(b."latitude"))
-      )))) AS distance_km
-    FROM "Business" b
-    JOIN "Location" city ON city."id" = b."locationId"
-    LEFT JOIN "Location" county ON county."id" = city."parentId"
-    LEFT JOIN "Location" state ON state."id" = county."parentId"
-    WHERE b."isPublished" = true
-      AND b."latitude" IS NOT NULL AND b."longitude" IS NOT NULL
-      AND b."name" NOT ILIKE ALL(${NON_BARN_NAME_PATTERNS}::text[])
-      AND EXISTS (
-        SELECT 1 FROM "BusinessCategory" bc
-        JOIN "Category" c ON c."id" = bc."categoryId"
-        WHERE bc."businessId" = b."id"
-          AND bc."reviewStatus" IN ('AUTO_APPROVED', 'APPROVED')
-          AND c."slug" = ${STABLES_SLUG}
-      )
-    GROUP BY city."id", city."name", city."slug", county."slug", state."slug"
-    HAVING MIN(6371 * acos(LEAST(1, GREATEST(-1,
-        cos(radians(${lat})) * cos(radians(b."latitude")) *
-          cos(radians(b."longitude") - radians(${lng}))
-        + sin(radians(${lat})) * sin(radians(b."latitude"))
-      )))) <= ${MAX_KM}
+    SELECT * FROM (
+      SELECT DISTINCT ON (lower(name)) * FROM (
+        SELECT city."name" AS name,
+          city."slug" AS city_slug,
+          county."slug" AS county_slug,
+          state."slug" AS state_slug,
+          COUNT(*)::int AS barn_count,
+          MIN(6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians(${lat})) * cos(radians(b."latitude")) *
+              cos(radians(b."longitude") - radians(${lng}))
+            + sin(radians(${lat})) * sin(radians(b."latitude"))
+          )))) AS distance_km
+        FROM "Business" b
+        JOIN "Location" city ON city."id" = b."locationId"
+        LEFT JOIN "Location" county ON county."id" = city."parentId"
+        LEFT JOIN "Location" state ON state."id" = county."parentId"
+        WHERE b."isPublished" = true
+          AND b."latitude" IS NOT NULL AND b."longitude" IS NOT NULL
+          AND b."name" NOT ILIKE ALL(${NON_BARN_NAME_PATTERNS}::text[])
+          AND EXISTS (
+            SELECT 1 FROM "BusinessCategory" bc
+            JOIN "Category" c ON c."id" = bc."categoryId"
+            WHERE bc."businessId" = b."id"
+              AND bc."reviewStatus" IN ('AUTO_APPROVED', 'APPROVED')
+              AND c."slug" = ${STABLES_SLUG}
+          )
+        GROUP BY city."id", city."name", city."slug", county."slug", state."slug"
+        HAVING MIN(6371 * acos(LEAST(1, GREATEST(-1,
+            cos(radians(${lat})) * cos(radians(b."latitude")) *
+              cos(radians(b."longitude") - radians(${lng}))
+            + sin(radians(${lat})) * sin(radians(b."latitude"))
+          )))) <= ${MAX_KM}
+      ) grouped
+      -- Collapse duplicate same-named city rows (the phantom-city crawl bug
+      -- filed e.g. six "Southwest Ranches" under different wrong counties) to
+      -- the nearest one, so visitors never see six identical tiles. The
+      -- crawler-side repair (repair_locations.py) merges the rows for real;
+      -- this keeps the read path clean regardless.
+      ORDER BY lower(name), distance_km ASC
+    ) deduped
     ORDER BY distance_km ASC
     LIMIT ${take}
   `;

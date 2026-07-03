@@ -16,6 +16,7 @@ from pathlib import Path
 
 from ..registry import Source
 from ..schemas import RawListing
+from .geo_validate import validated_geo
 
 FIXTURES_DIR = Path(__file__).resolve().parents[2] / "fixtures"
 
@@ -372,6 +373,14 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
             lat = _to_float(gps.get("latitude"))
         if lng is None:
             lng = _to_float(gps.get("longitude"))
+
+        # The query tag describes the SEARCH AREA, not the listing: Google pads
+        # sparse rural queries with out-of-area results, which used to file
+        # (e.g.) South-Florida barns under Indiana counties and mint phantom
+        # cities there. Cross-check the tag against the listing's own address
+        # state + coordinates, and drop/correct it when they disagree.
+        county, state = validated_geo(county, state, address, lat, lng)
+
         cats = r.get("categories") or ([r["category"]] if r.get("category") else [])
 
         by_id[key] = RawListing(

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { cityUrl } from "@/lib/urls";
+import { RailHeading } from "@/components/home/RailHeading";
 import type { NearbyCity } from "@/lib/db/nearby";
 
 // Geo-localized city list. Client-side so the homepage stays statically generated
@@ -57,10 +58,7 @@ export function NearbyCities() {
 
   return (
     <section className="py-14">
-      <div className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brass">Near you</p>
-        <h2 className="mt-1 text-3xl font-semibold text-pine">Stables near you</h2>
-      </div>
+      <RailHeading eyebrow="Explore" title="Cities near you" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {linkable.map((c) => (
           <Link
