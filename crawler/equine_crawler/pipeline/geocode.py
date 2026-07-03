@@ -14,6 +14,7 @@ import re
 import psycopg
 
 from ..db import gen_id
+from .geo_validate import VETO_KM, nearest_state, state_distance_km
 
 _SLUG = re.compile(r"[^a-z0-9]+")
 
@@ -51,7 +52,10 @@ def _resolve_global(cur: psycopg.Cursor, city: str) -> tuple[str, float, float] 
     return None
 
 
-def _find_county_id(cur: psycopg.Cursor, county: str | None, state: str | None = None) -> str | None:
+def _find_county_id(
+    cur: psycopg.Cursor, county: str | None, state: str | None = None
+) -> tuple[str, str | None] | None:
+    """Resolve a county name to (county_id, state_code)."""
     if not county:
         return None
     base = re.sub(r"\s+county$", "", county.strip(), flags=re.I)
@@ -60,7 +64,7 @@ def _find_county_id(cur: psycopg.Cursor, county: str | None, state: str | None =
     if state:
         cur.execute(
             """
-            SELECT c.id FROM "Location" c
+            SELECT c.id, s.code FROM "Location" c
             JOIN "Location" s ON c."parentId" = s.id
             WHERE c.type = 'COUNTY' AND s.type = 'STATE' AND upper(s.code) = upper(%s)
               AND (lower(c.name) = lower(%s) OR lower(c.name) = lower(%s))
@@ -70,18 +74,19 @@ def _find_county_id(cur: psycopg.Cursor, county: str | None, state: str | None =
         )
         row = cur.fetchone()
         if row:
-            return row[0]
+            return (row[0], row[1])
         return None
     cur.execute(
         """
-        SELECT id FROM "Location"
-        WHERE type = 'COUNTY' AND (lower(name) = lower(%s) OR lower(name) = lower(%s))
+        SELECT c.id, s.code FROM "Location" c
+        LEFT JOIN "Location" s ON c."parentId" = s.id AND s.type = 'STATE'
+        WHERE c.type = 'COUNTY' AND (lower(c.name) = lower(%s) OR lower(c.name) = lower(%s))
         LIMIT 1
         """,
         (county, base + " County"),
     )
     row = cur.fetchone()
-    return row[0] if row else None
+    return (row[0], row[1]) if row else None
 
 
 def _resolve_nearest_city(
@@ -144,7 +149,21 @@ def resolve_or_create(
     a global seeded-city match when the county/state is unknown, and to the
     nearest existing city (by coords) when there's no parseable city at all."""
     with conn.cursor() as cur:
-        county_id = _find_county_id(cur, county, state)
+        found = _find_county_id(cur, county, state)
+        county_id, county_state = (found if found else (None, None))
+
+        # Guard (defense in depth behind extract's validated_geo): never file
+        # into — or mint a city under — a county whose state is nowhere near
+        # the listing's own coordinates. This is exactly how phantom
+        # "Southwest Ranches" rows appeared under Indiana counties: a
+        # consistent-but-wrong query tag (Floyd|IN) resolved cleanly, then the
+        # create path minted the city there with Florida coordinates.
+        if county_id is not None:
+            km = state_distance_km(county_state, lat, lng)
+            if km is not None and km > VETO_KM:
+                county_id = None
+                state = nearest_state(lat, lng) or None
+
         if not city or not city.strip():
             # No parseable city — snap to the nearest existing city by coords
             # instead of dropping a real barn (see _resolve_nearest_city).
@@ -214,7 +233,14 @@ def resolve_or_create(
         nearest = _resolve_nearest_city(cur, county_id, state, lat, lng)
         if nearest:
             return nearest
-        return _resolve_global(cur, city)
+        hit = _resolve_global(cur, city)
+        if hit and lat is not None and lng is not None:
+            # Name-match sanity: "Lebanon" exists in a dozen states. Reject a
+            # global match whose city sits nowhere near the listing itself.
+            dx, dy = hit[1] - lat, hit[2] - lng
+            if (dx * dx + dy * dy) ** 0.5 > 6.0:  # ~660 km in degrees latitude
+                return None
+        return hit
 
 
 # Back-compat: original seeded-only resolver (still used by tests/fixtures).

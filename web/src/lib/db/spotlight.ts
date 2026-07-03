@@ -51,6 +51,35 @@ export async function getActiveSpotlightsForLocation(
   return out;
 }
 
+// Active spotlights sitewide — the homepage "Sponsored" rail (the ad space that
+// replaced the static regions block). Includes the sponsored barn's city so the
+// tile can say where it is. Round-robin by startsAt like the per-city query.
+export async function getActiveSpotlightsGlobal(
+  now: Date = new Date(),
+  limit = 5,
+): Promise<FeaturedSpotlight[]> {
+  const rows = await prisma.spotlight.findMany({
+    where: {
+      status: "active",
+      startsAt: { lte: now },
+      endsAt: { gte: now },
+      business: { isPublished: true },
+    },
+    orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+    take: limit * 2,
+    include: { business: { include: businessCardInclude } },
+  });
+  const seen = new Set<string>();
+  const out: FeaturedSpotlight[] = [];
+  for (const r of rows) {
+    if (seen.has(r.businessId)) continue;
+    seen.add(r.businessId);
+    out.push({ spotlightId: r.id, business: r.business });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
 // Active spotlights across a location subtree (city + its descendant cities under
 // a county/state) — used by the county/state hub "Featured near you" block. We
 // resolve the matching city ids first, then reuse the per-city query, preserving

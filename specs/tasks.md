@@ -84,6 +84,14 @@
       camps rail on /events; Stripe + webhook + admin grant) and **website-builder
       funnel** (owner Website tab lead form $99/$299 + $49.99/yr; embeddable
       Certified badge `/api/badge/[slug].svg` as the backlink magnet).
+- [x] T43d (2026-07-03) Phantom-city fix (the "Southwest Ranches, Floyd Co." bug):
+      pipeline now validates the gosom query tag against the listing's own
+      address state + coordinates (`geo_validate.py` + geocoder guards, with
+      regression tests); `repair_locations.py` merges the existing phantom rows;
+      read-side dedupe in getNearbyCities. Zillow-model homepage reorg: near-you
+      rail first, distinct rail titles, "See more →" links to the map, sponsored
+      ad-space section (Spotlight-fed, regions fallback + Advertise-here tile)
+      replaces the static Florida block. Runbook: specs/national-run.md.
 - [ ] T43 Phase-2 categories: grooming/care, transportation, remaining products (apparel)
 - [x] T44 (2026-07-03) FAQ schema + unique intro copy on category hubs & intent pages
       (`lib/seo/copy.ts`); `/guides` editorial articles with Article JSON-LD + sitemap;

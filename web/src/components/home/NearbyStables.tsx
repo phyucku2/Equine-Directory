@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { RailHeading } from "@/components/home/RailHeading";
 import type { BusinessCard as BusinessCardData } from "@/lib/db/business";
 
 // Client-side so the homepage stays statically generated for SEO. Fetches
@@ -51,10 +52,7 @@ export function NearbyStables() {
 
   return (
     <section className="py-14">
-      <div className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brass">Near you</p>
-        <h2 className="mt-1 text-3xl font-semibold text-pine">Stables near you</h2>
-      </div>
+      <RailHeading eyebrow="Near you" title="Stables near you" />
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((b) => (
           <BusinessCard key={b.id} business={b} />

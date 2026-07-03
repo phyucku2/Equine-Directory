@@ -3,8 +3,9 @@ import { getFeatured } from "@/lib/db/business";
 import { FeaturedStables } from "@/components/home/FeaturedStables";
 import { NearbyStables } from "@/components/home/NearbyStables";
 import { NearbyCities } from "@/components/home/NearbyCities";
+import { SponsoredRegions } from "@/components/home/SponsoredRegions";
 import { SERVICE_SEGMENTS } from "@/lib/catalog";
-import { cityUrl, categoryUrl } from "@/lib/urls";
+import { categoryUrl } from "@/lib/urls";
 
 // Homepage blurbs per service segment (label/slugs come from the catalog).
 const SEGMENT_BLURBS: Record<string, string> = {
@@ -17,15 +18,6 @@ const SEGMENT_BLURBS: Record<string, string> = {
 };
 
 export const revalidate = 3600;
-
-const TOP_REGIONS = [
-  { name: "Ocala", county: "marion", desc: "Horse Capital of the World" },
-  { name: "Wellington", county: "palm-beach", desc: "Winter equestrian circuit" },
-  { name: "Tampa", county: "hillsborough", desc: "Gulf Coast hub" },
-  { name: "Sarasota", county: "sarasota", desc: "Shows & boarding" },
-  { name: "Gainesville", county: "alachua", desc: "North Central FL" },
-  { name: "Brooksville", county: "hernando", desc: "Trails & ranches" },
-];
 
 function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   return (
@@ -87,7 +79,15 @@ export default async function HomePage() {
       </section>
 
       <div className="mx-auto max-w-6xl px-4">
-        {/* Browse by service — the six public verticals (Goal 3) */}
+        {/* Zillow-model section order: personalized rail first (their "Homes
+            for you"), then the intent CTAs, then paid/featured placements,
+            then the geographic explore links. */}
+
+        {/* Stables near you (geo-aware; hides itself when nothing is close) */}
+        <NearbyStables />
+
+        {/* Browse by service — the six public verticals (Goal 3); the
+            Buy/Sell/Rent-style intent cards of the Zillow homepage. */}
         <section className="py-14">
           <SectionHeading eyebrow="What do you need?" title="Browse by service" />
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -109,29 +109,13 @@ export default async function HomePage() {
             SEO/no-JS fallback and initial paint. */}
         <FeaturedStables initial={featured} />
 
-        {/* Stables near you (geo-aware; hides itself when nothing is close) */}
-        <NearbyStables />
-
         {/* Cities near you (geo-aware; hides itself when geo is unknown). The
-            static hub list below stays crawlable as the SEO fallback. */}
+            sponsored/regions block below stays crawlable as the SEO fallback. */}
         <NearbyCities />
 
-        {/* Top regions (static, crawlable fallback hub list) */}
-        <section className="py-14">
-          <SectionHeading eyebrow="Where to look" title="Florida horse country" />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {TOP_REGIONS.map((r) => (
-              <Link
-                key={r.name}
-                href={cityUrl("florida", r.county, r.name.toLowerCase())}
-                className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
-              >
-                <h3 className="text-lg font-semibold text-pine">{r.name}</h3>
-                <p className="mt-1 text-sm text-ink/55">{r.desc}</p>
-              </Link>
-            ))}
-          </div>
-        </section>
+        {/* Ad space: paid Spotlight placements (falls back to the crawlable
+            popular-regions hub list + an "Advertise here" tile). */}
+        <SponsoredRegions />
 
         {/* Claim CTA */}
         <section className="my-14 rounded-2xl bg-pine px-6 py-12 text-center text-cream">

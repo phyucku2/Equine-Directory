@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { RailHeading } from "@/components/home/RailHeading";
 import type { BusinessCard as BusinessCardData } from "@/lib/db/business";
 
 // "Featured stables" — LOCAL to the visitor. Server-renders the national
@@ -52,10 +53,7 @@ export function FeaturedStables({ initial }: { initial: BusinessCardData[] }) {
 
   return (
     <section className="py-14">
-      <div className="mb-7">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brass">Featured</p>
-        <h2 className="mt-1 text-3xl font-semibold text-pine">Featured stables</h2>
-      </div>
+      <RailHeading eyebrow="Featured" title="Featured stables near you" />
       <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((b) => (
           <BusinessCard key={b.id} business={b} />
