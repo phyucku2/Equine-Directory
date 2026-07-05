@@ -45,7 +45,7 @@ export async function NearbyCityLinks({
     return null; // degraded DB — the block is an enhancement, never a blocker
   }
   const neighbors = cities.filter(
-    (c) => c.citySlug !== excludeCitySlug && c.countySlug && c.stateSlug,
+    (c) => c.citySlug !== excludeCitySlug && c.stateSlug,
   );
   if (neighbors.length === 0) return null;
 
@@ -58,8 +58,8 @@ export async function NearbyCityLinks({
             <Link
               href={
                 categorySlug
-                  ? intentUrl(categorySlug, c.stateSlug!, c.countySlug!, c.citySlug)
-                  : cityUrl(c.stateSlug!, c.countySlug!, c.citySlug)
+                  ? intentUrl(categorySlug, c.stateSlug!, c.citySlug)
+                  : cityUrl(c.stateSlug!, c.citySlug)
               }
               className="text-brass hover:underline"
             >

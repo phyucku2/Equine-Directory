@@ -158,8 +158,8 @@ export default async function BusinessPage({
     { name: "Home", url: "/" },
     ...(state ? [{ name: state.name, url: stateUrl(state.slug) }] : []),
     ...(state && county ? [{ name: county.name, url: countyUrl(state.slug, county.slug) }] : []),
-    ...(state && county
-      ? [{ name: business.location.name, url: cityUrl(state.slug, county.slug, business.location.slug) }]
+    ...(state
+      ? [{ name: business.location.name, url: cityUrl(state.slug, business.location.slug) }]
       : []),
     { name: business.name, url: businessUrl(business.slug) },
   ];
