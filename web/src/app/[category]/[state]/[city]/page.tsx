@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
-import { getCityBySlug } from "@/lib/db/location";
+import { getCityInState } from "@/lib/db/location";
 import { getByCategoryAndLocation, isPublicCategorySlug } from "@/lib/db/business";
 import { getIntentCombos } from "@/lib/db/intent";
 import { intentUrl, categoryUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
@@ -17,19 +17,15 @@ import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 3600;
 
-type Params = { category: string; state: string; county: string; city: string };
+// Flat intent page: /[category]/[state]/[city] (county dropped from the path).
+type Params = { category: string; state: string; city: string };
 
 export async function generateStaticParams() {
   try {
     const combos = await getIntentCombos(200);
     return combos
       .filter((c) => isPublicCategorySlug(c.category))
-      .map((c) => ({
-      category: c.category,
-      state: c.state,
-      county: c.county,
-      city: c.city,
-    }));
+      .map((c) => ({ category: c.category, state: c.state, city: c.city }));
   } catch {
     return [];
   }
@@ -38,7 +34,7 @@ export async function generateStaticParams() {
 async function load(p: Params) {
   const [cat, loc] = await Promise.all([
     getCategoryBySlug(p.category),
-    getCityBySlug(p.state, p.county, p.city),
+    getCityInState(p.state, p.city),
   ]);
   return { cat, loc };
 }
@@ -57,7 +53,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     title,
     description: `Find ${cat.name.toLowerCase()} in ${loc.name}${stateName ? `, ${stateName}` : ""}. Compare listings, reviews and contact details.`,
     robots: robots(isHubIndexable(count.total)),
-    alternates: { canonical: absoluteUrl(intentUrl(p.category, p.state, p.county, p.city)) },
+    alternates: { canonical: absoluteUrl(intentUrl(p.category, p.state, p.city)) },
   };
 }
 
@@ -81,19 +77,18 @@ export default async function IntentPage({
   const county = loc.parent;
   const state = county?.parent;
   const placeName = state ? `${loc.name}, ${state.name}` : loc.name;
+  const self = intentUrl(p.category, p.state, p.city);
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
-      <JsonLd
-        data={collectionLd(`${cat.name} in ${placeName}`, intentUrl(p.category, p.state, p.county, p.city), results.items)}
-      />
+      <JsonLd data={collectionLd(`${cat.name} in ${placeName}`, self, results.items)} />
       <Breadcrumbs
         items={[
           { name: "Home", url: "/" },
           { name: cat.name, url: categoryUrl(cat.slug) },
           ...(state ? [{ name: state.name, url: stateUrl(state.slug) }] : []),
           ...(state && county ? [{ name: county.name, url: countyUrl(state.slug, county.slug) }] : []),
-          { name: loc.name, url: intentUrl(p.category, p.state, p.county, p.city) },
+          { name: loc.name, url: self },
         ]}
       />
 
@@ -121,7 +116,7 @@ export default async function IntentPage({
               all {cat.name.toLowerCase()} nationwide
             </Link>{" "}
             or{" "}
-            <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
+            <Link href={cityUrl(p.state, p.city)} className="text-brass hover:underline">
               everything in {loc.name}
             </Link>
             .
@@ -134,16 +129,12 @@ export default async function IntentPage({
               <BusinessCard key={b.id} business={b} />
             ))}
           </div>
-          <Pagination
-            basePath={intentUrl(p.category, p.state, p.county, p.city)}
-            page={results.page}
-            totalPages={results.totalPages}
-          />
+          <Pagination basePath={self} page={results.page} totalPages={results.totalPages} />
           <div className="mt-10 flex flex-wrap gap-3 text-sm">
             <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
               All {cat.name.toLowerCase()} nationwide →
             </Link>
-            <Link href={cityUrl(p.state, p.county, p.city)} className="text-brass hover:underline">
+            <Link href={cityUrl(p.state, p.city)} className="text-brass hover:underline">
               Everything in {loc.name} →
             </Link>
           </div>

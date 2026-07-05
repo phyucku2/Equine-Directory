@@ -1,5 +1,18 @@
 import type { NextConfig } from "next";
 
+// Public catalog category slugs (mirror of src/lib/catalog.ts — kept inline so
+// next.config stays free of app-alias imports). Used to scope the intent-page
+// 301s to real category prefixes only.
+const CATEGORY_SLUGS = [
+  "horse-boarding",
+  "training-facilities",
+  "trainer-instructor",
+  "equine-veterinarian",
+  "farrier",
+  "tack-shop",
+  "feed-forage",
+];
+
 const nextConfig: NextConfig = {
   images: {
     formats: ["image/avif", "image/webp"],
@@ -21,6 +34,26 @@ const nextConfig: NextConfig = {
       afterFiles: [],
       fallback: [],
     };
+  },
+  async redirects() {
+    // Zillow-model URL flattening: county dropped from city + intent URLs.
+    // Permanent 301s preserve every URL Google has already indexed.
+    return [
+      // Old city hub: /locations/[state]/[county]/[city] -> /locations/[state]/[city]
+      {
+        source: "/locations/:state/:county/:city",
+        destination: "/locations/:state/:city",
+        permanent: true,
+      },
+      // Old intent page: /[category]/[state]/[county]/[city] -> /[category]/[state]/[city]
+      // One rule per real category slug so the 4-segment pattern can't match
+      // unrelated routes.
+      ...CATEGORY_SLUGS.map((slug) => ({
+        source: `/${slug}/:state/:county/:city`,
+        destination: `/${slug}/:state/:city`,
+        permanent: true,
+      })),
+    ];
   },
   async headers() {
     return [

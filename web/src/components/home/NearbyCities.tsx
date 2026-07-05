@@ -53,7 +53,7 @@ export function NearbyCities() {
   }, []);
 
   // Only cities with a full state/county/city path can form a valid URL.
-  const linkable = (cities ?? []).filter((c) => c.stateSlug && c.countySlug && c.citySlug);
+  const linkable = (cities ?? []).filter((c) => c.stateSlug && c.citySlug);
   if (linkable.length === 0) return null;
 
   return (
@@ -62,8 +62,8 @@ export function NearbyCities() {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {linkable.map((c) => (
           <Link
-            key={`${c.stateSlug}/${c.countySlug}/${c.citySlug}`}
-            href={cityUrl(c.stateSlug!, c.countySlug!, c.citySlug)}
+            key={`${c.stateSlug}/${c.citySlug}`}
+            href={cityUrl(c.stateSlug!, c.citySlug)}
             className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
           >
             <h3 className="text-lg font-semibold text-pine">{c.name}</h3>

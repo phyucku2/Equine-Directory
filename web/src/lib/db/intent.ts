@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 export interface IntentCombo {
   category: string;
   state: string;
-  county: string;
   city: string;
 }
 
@@ -40,10 +39,10 @@ export async function getIntentCombos(limit = 200): Promise<IntentCombo[]> {
     const combo: IntentCombo = {
       category: r.category.slug,
       state: state.slug,
-      county: county.slug,
       city: city.slug,
     };
-    const key = `${combo.category}|${combo.city}`;
+    // State-qualified so same-named cities in different states both pre-render.
+    const key = `${combo.category}|${combo.state}|${combo.city}`;
     if (!seen.has(key)) seen.set(key, combo);
     if (seen.size >= limit) break;
   }

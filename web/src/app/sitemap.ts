@@ -109,7 +109,7 @@ async function locationsSitemap(): Promise<MetadataRoute.Sitemap> {
     };
     add(absoluteUrl(stateUrl(state.slug)), state.updatedAt);
     add(absoluteUrl(countyUrl(state.slug, county.slug)), county.updatedAt);
-    add(absoluteUrl(cityUrl(state.slug, county.slug, city.slug)), city.updatedAt);
+    add(absoluteUrl(cityUrl(state.slug, city.slug)), city.updatedAt);
   }
   return Array.from(entries.values()).map((e) => ({
     url: e.url,

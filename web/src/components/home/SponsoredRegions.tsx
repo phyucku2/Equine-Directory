@@ -9,11 +9,11 @@ import { cityUrl } from "@/lib/urls";
 // regions hub list renders as crawlable fallback so the section is never blank.
 
 const FALLBACK_REGIONS = [
-  { name: "Ocala", state: "florida", county: "marion", desc: "Horse Capital of the World" },
-  { name: "Wellington", state: "florida", county: "palm-beach", desc: "Winter equestrian circuit" },
-  { name: "Tampa", state: "florida", county: "hillsborough", desc: "Gulf Coast hub" },
-  { name: "Sarasota", state: "florida", county: "sarasota", desc: "Shows & boarding" },
-  { name: "Gainesville", state: "florida", county: "alachua", desc: "North Central FL" },
+  { name: "Ocala", state: "florida", city: "ocala", desc: "Horse Capital of the World" },
+  { name: "Wellington", state: "florida", city: "wellington", desc: "Winter equestrian circuit" },
+  { name: "Tampa", state: "florida", city: "tampa", desc: "Gulf Coast hub" },
+  { name: "Sarasota", state: "florida", city: "sarasota", desc: "Shows & boarding" },
+  { name: "Gainesville", state: "florida", city: "gainesville", desc: "North Central FL" },
 ];
 
 function AdvertiseTile() {
@@ -70,7 +70,7 @@ export async function SponsoredRegions() {
         {FALLBACK_REGIONS.map((r) => (
           <Link
             key={r.name}
-            href={cityUrl(r.state, r.county, r.name.toLowerCase())}
+            href={cityUrl(r.state, r.city)}
             className="rounded-2xl border border-leather/15 bg-white p-5 transition hover:border-brass hover:shadow-md"
           >
             <h3 className="text-lg font-semibold text-pine">{r.name}</h3>

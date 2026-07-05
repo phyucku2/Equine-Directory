@@ -29,22 +29,21 @@ export function stateUrl(stateSlug: string): string {
   return `/locations/${stateSlug}`;
 }
 
+// County and city hubs share the flat `/locations/[state]/[place]` level (the
+// [place] route resolves a slug to a city first, then a county). Counties were
+// already at this level; cities moved up here (dropping the county segment) in
+// the Zillow-model URL flattening — cities are the SEO-primary hub.
 export function countyUrl(stateSlug: string, countySlug: string): string {
   return `/locations/${stateSlug}/${countySlug}`;
 }
 
-export function cityUrl(stateSlug: string, countySlug: string, citySlug: string): string {
-  return `/locations/${stateSlug}/${countySlug}/${citySlug}`;
+export function cityUrl(stateSlug: string, citySlug: string): string {
+  return `/locations/${stateSlug}/${citySlug}`;
 }
 
-// Programmatic intent page: e.g. /horse-boarding/florida/marion/ocala
-export function intentUrl(
-  categorySlug: string,
-  stateSlug: string,
-  countySlug: string,
-  citySlug: string,
-): string {
-  return `/${categorySlug}/${stateSlug}/${countySlug}/${citySlug}`;
+// Programmatic intent page: e.g. /horse-boarding/florida/ocala
+export function intentUrl(categorySlug: string, stateSlug: string, citySlug: string): string {
+  return `/${categorySlug}/${stateSlug}/${citySlug}`;
 }
 
 export function absoluteUrl(path: string): string {
