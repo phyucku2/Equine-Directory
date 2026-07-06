@@ -73,6 +73,29 @@ cities so visitors never see duplicate tiles even if data is briefly dirty.
 - Sitemaps pick up new cities automatically (ISR); Search Console will show
   the discovered-URL count climbing on its own.
 
+## Expanding beyond boarding — the other five verticals
+
+The national boarding run searched only three phrases (`horse boarding`,
+`horse stables`, `equestrian center`) — so farriers, vets, tack, feed, and
+trainers are only in the directory *incidentally* (they happened to surface in
+a boarding search), not because we searched for them. Their dedicated phrases
+live in `registry.ADJACENT_QUERY_SPECS`. To crawl them properly:
+
+```bash
+# Top-up pass: ONLY the adjacent verticals (boarding already done). ~33K
+# queries nationally (11 phrases x counties); scope by state to spread it out.
+python gen_gmaps_queries.py --only-adjacent --state NY --out queries-ny-adj.txt
+# ... run gosom on queries-ny-adj.txt -> results-ny-adj.json ...
+python run.py --source gmaps-file --file out/results-ny-adj.json --no-llm
+
+# Or generate boarding + all verticals together for a fresh state:
+python gen_gmaps_queries.py --adjacent --state NY --out queries-ny.txt
+```
+
+Same self-validating pipeline (geo_validate) and the same audit/repair gates
+apply. This is the biggest remaining coverage lever — it can more than double
+the directory and is what fills out the multi-category (Goal 3) promise.
+
 ## Clearing the moderation queue with AI (`ai_moderate.py`)
 
 The ingest-time grader routes any category it can't confirm to PENDING_REVIEW

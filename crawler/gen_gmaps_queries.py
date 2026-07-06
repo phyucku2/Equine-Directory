@@ -18,7 +18,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from equine_crawler.registry import PLACES, _FL_AREAS, STATE_COUNTY_AREAS
+from equine_crawler.registry import ADJACENT_QUERY_SPECS, PLACES, _FL_AREAS, STATE_COUNTY_AREAS
 
 _DENSE_CSV = Path(__file__).resolve().parent / "dense_counties.csv"
 
@@ -41,6 +41,18 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Generate gosom queries.txt")
     ap.add_argument("--state", nargs="*", help="2-letter state codes to include (default: all)")
     ap.add_argument("--dense", action="store_true", help="only dense counties (dense_counties.csv)")
+    ap.add_argument(
+        "--adjacent",
+        action="store_true",
+        help="also search the other verticals (farrier/vet/tack/feed/trainer/…) — "
+        "adds ADJACENT_QUERY_SPECS; ~4x more queries but fills out the multi-category directory",
+    )
+    ap.add_argument(
+        "--only-adjacent",
+        action="store_true",
+        help="ONLY the adjacent verticals (skip boarding phrases) — for a targeted "
+        "top-up run after boarding is already crawled",
+    )
     ap.add_argument("--out", default=None, help="output file (default: stdout)")
     args = ap.parse_args()
 
@@ -49,7 +61,15 @@ def main() -> None:
         codes = {s.upper() for s in args.state}
         areas = [a for a in areas if a.rsplit(" ", 1)[-1].upper() in codes]
 
-    phrases = list(dict.fromkeys(p for p, _ in PLACES.query_specs))  # boarding phrases, deduped
+    # Phrase set: boarding by default; --adjacent adds the other verticals'
+    # dedicated searches (farrier/vet/tack/feed/trainer/…), --only-adjacent runs
+    # just those (a top-up pass once boarding is already crawled).
+    specs = list(PLACES.query_specs)
+    if args.only_adjacent:
+        specs = list(ADJACENT_QUERY_SPECS)
+    elif args.adjacent:
+        specs = specs + list(ADJACENT_QUERY_SPECS)
+    phrases = list(dict.fromkeys(p for p, _ in specs))
 
     lines: list[str] = []
     for area in areas:
