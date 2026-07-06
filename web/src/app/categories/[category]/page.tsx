@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
 import { getByCategory, countByCategory, isPublicCategorySlug, PUBLIC_CATEGORY_SLUGS } from "@/lib/db/business";
-import { categoryUrl, absoluteUrl } from "@/lib/urls";
+import { getStatesForCategory } from "@/lib/db/intent";
+import { categoryUrl, categoryStateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { Pagination } from "@/components/Pagination";
@@ -52,7 +54,10 @@ export default async function CategoryPage({
   if (!cat) notFound();
 
   const page = Math.max(1, Number(pageParam) || 1);
-  const results = await getByCategory(category, page);
+  const [results, states] = await Promise.all([
+    getByCategory(category, page),
+    page === 1 ? getStatesForCategory(category) : Promise.resolve([]),
+  ]);
   const copy = categoryCopy(category);
 
   const crumbs = [
@@ -90,6 +95,26 @@ export default async function CategoryPage({
           </div>
           <Pagination basePath={categoryUrl(cat.slug)} page={results.page} totalPages={results.totalPages} />
         </>
+      )}
+
+      {/* Browse by state — the pillar mesh (SEO Lever 2): links to every
+          statewide category page that has listings. */}
+      {states.length > 0 && (
+        <section className="mt-14">
+          <h2 className="text-xl font-semibold text-pine">{cat.name} by state</h2>
+          <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-1 text-sm sm:grid-cols-3 lg:grid-cols-4">
+            {states.map((s) => (
+              <Link
+                key={s.slug}
+                href={categoryStateUrl(cat.slug, s.slug)}
+                className="flex items-baseline justify-between gap-2 rounded px-1 py-0.5 hover:text-brass"
+              >
+                <span className="truncate text-ink/75">{s.name}</span>
+                <span className="shrink-0 text-xs text-ink/40">{s.count}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
       {/* Visible FAQ content backing the FAQPage JSON-LD (Goal 5 / T44) */}

@@ -5,7 +5,7 @@ import { getCategoryBySlug } from "@/lib/db/category";
 import { getCityInState } from "@/lib/db/location";
 import { getByCategoryAndLocation, isPublicCategorySlug } from "@/lib/db/business";
 import { getIntentCombos } from "@/lib/db/intent";
-import { intentUrl, categoryUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
+import { intentUrl, categoryUrl, categoryStateUrl, cityUrl, countyUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { NearbyCityLinks } from "@/components/NearbyCityLinks";
@@ -131,6 +131,11 @@ export default async function IntentPage({
           </div>
           <Pagination basePath={self} page={results.page} totalPages={results.totalPages} />
           <div className="mt-10 flex flex-wrap gap-3 text-sm">
+            {state && (
+              <Link href={categoryStateUrl(p.category, p.state)} className="text-brass hover:underline">
+                All {cat.name.toLowerCase()} in {state.name} →
+              </Link>
+            )}
             <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">
               All {cat.name.toLowerCase()} nationwide →
             </Link>
