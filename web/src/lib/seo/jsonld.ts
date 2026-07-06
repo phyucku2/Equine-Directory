@@ -67,6 +67,21 @@ export function collectionLd(name: string, url: string, businesses: { name: stri
   };
 }
 
+// Dataset schema for the /data study pages — helps them surface in Google's
+// Dataset search and signals a citable, structured source (link-worthy).
+export function datasetLd(d: { name: string; description: string; url: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: d.name,
+    description: d.description,
+    url: absoluteUrl(d.url),
+    creator: { "@type": "Organization", name: SITE_NAME, url: absoluteUrl("/") },
+    isAccessibleForFree: true,
+    license: "https://creativecommons.org/licenses/by/4.0/",
+  };
+}
+
 // FAQPage schema (Goal 5 / T44). The same Q&As must be visible on the page.
 export function faqLd(faqs: { q: string; a: string }[]) {
   return {

@@ -8,6 +8,7 @@ import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { FeaturedSpotlights } from "@/components/business/FeaturedSpotlights";
 import { NearbyCityLinks } from "@/components/NearbyCityLinks";
+import { LocationStatStrip } from "@/components/LocationStatStrip";
 import { getActiveSpotlightsForArea } from "@/lib/db/spotlight";
 import { Pagination } from "@/components/Pagination";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
@@ -89,6 +90,9 @@ export default async function PlacePage({
       <p className="mt-1 text-ink/55">
         {results.total} {results.total === 1 ? "stable" : "stables"} · Updated {new Date().getFullYear()}
       </p>
+
+      {/* Unique per-page real-data stats (Lever 1B). */}
+      <LocationStatStrip locationId={resolved.loc.id} place={resolved.loc.name} />
 
       {/* County hubs list their cities as quick chips. */}
       {childCities.length > 0 && (

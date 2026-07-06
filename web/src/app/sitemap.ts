@@ -19,10 +19,11 @@ export async function generateSitemaps() {
   ];
 }
 
-// Static editorial guides (Goal 5 long-tail content).
+// Static editorial + data pages (Goal 5 long-tail content + linkable assets).
 function guidesSitemap(): MetadataRoute.Sitemap {
   return [
     { url: absoluteUrl("/guides"), changeFrequency: "weekly" as const, priority: 0.6 },
+    { url: absoluteUrl("/data"), changeFrequency: "weekly" as const, priority: 0.7 },
     ...GUIDES.map((g) => ({
       url: absoluteUrl(`/guides/${g.slug}`),
       lastModified: new Date(g.datePublished),
