@@ -72,3 +72,24 @@ cities so visitors never see duplicate tiles even if data is briefly dirty.
   `audit.py` full pass.
 - Sitemaps pick up new cities automatically (ISR); Search Console will show
   the discovered-URL count climbing on its own.
+
+## Clearing the moderation queue with AI (`ai_moderate.py`)
+
+The ingest-time grader routes any category it can't confirm to PENDING_REVIEW
+(the /admin/review queue — tens of thousands of rows at national scale). Work
+it with AI instead of by hand: for each pending business, `ai_moderate.py`
+fetches the business's own website (the evidence the ingest grader usually
+lacked) and re-grades each pending category with `grade_with_llm`, then
+auto-approves confident matches and rejects only clear negatives it actually
+examined. Genuinely ambiguous rows are left for a human.
+
+```bash
+python ai_moderate.py                    # DRY RUN — writes out/ai-moderation-decisions.csv
+python ai_moderate.py --state WA --limit 200   # scope a first pass
+python ai_moderate.py --apply            # commit approvals/rejections (+ AuditLog)
+```
+
+Needs a grading provider key (`GEMINI_API_KEY` or `ANTHROPIC_API_KEY`).
+Conservative by design — review the dry-run CSV before `--apply`. Approvals
+publish new listings (recompute isPublished), then it pings REVALIDATE_URL if
+set. Re-runnable: it only ever reads rows still PENDING_REVIEW.
