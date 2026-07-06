@@ -15,6 +15,7 @@ import { localBusinessLd } from "@/lib/seo/jsonld";
 import { robots, isBusinessDetailIndexable } from "@/lib/seo/indexing";
 import { SaveHeartButton } from "@/components/saved/SaveHeartButton";
 import { InquiryForm } from "@/components/inquiry/InquiryForm";
+import { countInquiries } from "@/lib/db/inquiry";
 import { ReviewForm } from "@/components/reviews/ReviewForm";
 import { facetLabel, PROGRAM_TYPES, type FacetKey } from "@/lib/facets";
 import { getEntitlements } from "@/lib/entitlements";
@@ -134,18 +135,24 @@ export default async function BusinessPage({
   const showStallsBadge =
     ent.stallsBadge && readStallsBadge(business.attributes) && (business.spotsAvailable ?? 0) > 0;
 
-  const [related, trainers, events] = await Promise.all([
+  const [related, trainers, events, heldLeads] = await Promise.all([
     getRelated(business),
     getListingTrainers(business.id, ent.maxTrainers),
     getUpcomingEventsForBusiness(business.id, ent.canEvents),
+    // Leads a barn has received but can't yet read (delivery is BASIC+). Drives
+    // the "N inquiries waiting — claim to read" upsell. Skip the query when the
+    // barn already receives leads.
+    ent.canReceiveLeads ? Promise.resolve(0) : countInquiries(business.id),
   ]);
   const county = business.location.parent;
   const state = county?.parent;
   const phoneHref = telHref(business.phone);
-  // Outbound website link is a paid/claimed perk (VERIFIED+): no free outbound
+  // Outbound website link is a paid/claimed perk (BASIC+): no free outbound
   // links for unclaimed/FREE barns — keeps link equity on the directory and is a
-  // clean upsell hook (post-launch-fixes.md §3). `site` stays null when gated, so
-  // every "Visit website" surface below disappears for non-entitled barns.
+  // clean upsell hook (post-launch-fixes.md §3). It is also intentionally demoted
+  // to a small text link (not a button): the primary action is "Contact this
+  // stable", which keeps the lead on-site (Zillow model). `site` stays null when
+  // gated, so every website surface below disappears for non-entitled barns.
   const site = ent.canShowWebsiteLink ? ensureHttp(business.website) : null;
   // Barn has a website on file but isn't entitled to expose it → show a claim
   // upsell where the link would have been.
@@ -264,12 +271,20 @@ export default async function BusinessPage({
               ))}
             </div>
 
-            {/* CTAs */}
-            <div className="mt-5 flex flex-wrap gap-3">
+            {/* CTAs — "Contact" is the primary action (leads are captured on-site,
+                the Zillow model). Call is secondary; the outbound website link is
+                demoted to a small text link so visitors stay on the listing. */}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <a
+                href="#contact"
+                className="rounded-lg bg-pine px-5 py-2 font-medium text-cream transition hover:bg-pine-light"
+              >
+                Contact this stable
+              </a>
               {phoneHref && (
                 <a
                   href={phoneHref}
-                  className="rounded-lg bg-pine px-4 py-2 font-medium text-cream transition hover:bg-pine-light"
+                  className="rounded-lg border border-leather/25 px-4 py-2 font-medium text-pine transition hover:border-brass hover:text-brass"
                 >
                   Call {business.phone}
                 </a>
@@ -278,10 +293,10 @@ export default async function BusinessPage({
                 <a
                   href={site}
                   target="_blank"
-                  rel="noopener noreferrer nofollow"
-                  className="rounded-lg border border-leather/25 px-4 py-2 font-medium text-pine transition hover:border-brass hover:text-brass"
+                  rel="noopener noreferrer nofollow sponsored"
+                  className="text-sm text-ink/55 underline decoration-leather/30 underline-offset-2 hover:text-brass"
                 >
-                  Visit website
+                  Visit website ↗
                 </a>
               )}
             </div>
@@ -538,7 +553,7 @@ export default async function BusinessPage({
             <p className="mt-2 text-ink/80">{business.address}</p>
             {site ? (
               <p className="mt-2 text-sm">
-                <a href={site} target="_blank" rel="noopener noreferrer nofollow" className="text-brass hover:underline">
+                <a href={site} target="_blank" rel="noopener noreferrer nofollow sponsored" className="text-brass hover:underline">
                   {displayHostname(business.website)}
                 </a>
               </p>
@@ -576,12 +591,12 @@ export default async function BusinessPage({
             </div>
           )}
 
-          <div className="rounded-2xl border border-leather/15 bg-white p-5">
+          <div id="contact" className="scroll-mt-24 rounded-2xl border border-leather/15 bg-white p-5">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-ink/55">
-              Contact this barn
+              Contact this stable
             </h2>
             <p className="mt-1 text-sm text-ink/70">
-              Send an inquiry and {business.name} will reply to your email.
+              Send a message to {business.name} — it&apos;s free, and they&apos;ll reply to your email.
             </p>
             <div className="mt-4">
               <InquiryForm businessId={business.id} businessName={business.name} />
@@ -590,9 +605,19 @@ export default async function BusinessPage({
 
           <div className="rounded-2xl border border-dashed border-leather/25 bg-white p-5 text-sm text-ink/70">
             <p className="font-medium text-pine">Is this your stable?</p>
-            <p className="mt-1">Claim your listing to manage details and respond to reviews.</p>
+            {heldLeads > 0 ? (
+              <p className="mt-1">
+                <span className="font-semibold text-leather">
+                  {heldLeads === 1 ? "1 person has" : `${heldLeads} people have`} already reached out.
+                </span>{" "}
+                Claim your listing to read {heldLeads === 1 ? "their message" : "their messages"},
+                manage details, and respond to reviews.
+              </p>
+            ) : (
+              <p className="mt-1">Claim your listing to receive inquiries, manage details, and respond to reviews.</p>
+            )}
             <Link href={`/business/${business.slug}/claim`} className="mt-2 inline-block font-medium text-brass hover:underline">
-              Claim this stable →
+              {heldLeads > 0 ? "Claim to read your inquiries →" : "Claim this stable →"}
             </Link>
             <div className="mt-3 border-t border-leather/15 pt-3">
               <ReportButton businessId={business.id} />
@@ -615,13 +640,21 @@ export default async function BusinessPage({
         </section>
       )}
 
-      {/* Sticky mobile action bar — thumb-reachable Call / Directions / Website */}
+      {/* Sticky mobile action bar — thumb-reachable Contact / Call / Directions.
+          Contact is primary (keeps the lead on-site); website is intentionally
+          not here — it lives as a demoted text link up top. */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-leather/15 bg-cream/95 px-4 py-3 backdrop-blur lg:hidden">
         <div className="mx-auto flex max-w-5xl gap-2">
+          <a
+            href="#contact"
+            className="flex-1 rounded-lg bg-pine py-2.5 text-center font-semibold text-cream transition hover:bg-pine-light"
+          >
+            Contact
+          </a>
           {phoneHref && (
             <a
               href={phoneHref}
-              className="flex-1 rounded-lg bg-pine py-2.5 text-center font-semibold text-cream transition hover:bg-pine-light"
+              className="flex-1 rounded-lg border border-pine/30 py-2.5 text-center font-semibold text-pine transition hover:border-brass hover:text-brass"
             >
               Call
             </a>
@@ -634,16 +667,6 @@ export default async function BusinessPage({
           >
             Directions
           </a>
-          {site && (
-            <a
-              href={site}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="flex-1 rounded-lg border border-pine/30 py-2.5 text-center font-semibold text-pine transition hover:border-brass hover:text-brass"
-            >
-              Website
-            </a>
-          )}
         </div>
       </div>
     </div>

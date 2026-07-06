@@ -18,8 +18,8 @@ import type { SubTier } from "@prisma/client";
 // Single source of truth for prices. Easy to change; consumed by the Plan/Upgrade
 // UI and the Stripe product/checkout layer (stage 4).
 export const PRICES = {
-  // Entry tier (Goal 6: subscriptions start at $9/yr). Yearly only.
-  basic: { yearly: 900 },
+  // Entry tier (Goal 6: subscriptions start under $10/yr). Yearly only.
+  basic: { yearly: 998 },
   verified: { monthly: 299, yearly: 2500 },
   trainerSeat: { yearly: 1000 },
   events: { yearly: 4900 },
@@ -57,6 +57,14 @@ export type Entitlements = {
    * specs/post-launch-fixes.md §3).
    */
   canShowWebsiteLink: boolean;
+  /**
+   * Consumer inquiries/leads are delivered to the owner (email alert + owner
+   * inbox). BASIC+ (paid) only — the Zillow model: leads are always *captured*
+   * on-site for any barn, but *routing* the lead to the owner is the paid perk.
+   * FREE/unclaimed barns accumulate held leads that convert into the "N inquiries
+   * waiting — claim to read" upsell.
+   */
+  canReceiveLeads: boolean;
   /** Max trainer profiles. TEAM: TRAINER_SEATS_INCLUDED + subscription.trainerSeats. */
   maxTrainers: number;
   /** Owner may publish events/shows/clinics/camps. EVENTS. */
@@ -87,17 +95,20 @@ const FREE_FLAGS: TierFlags = {
   canCollectReviews: false,
   canEditFacets: false,
   canShowWebsiteLink: false,
+  canReceiveLeads: false,
   canEvents: false,
   baseTrainers: 0,
 };
 
-// Basic ($9/yr): the cheap "own your listing" entry rung. One owner photo and a
-// live outbound website link — the badge, review collection, logo, and facet
-// editing stay Verified+ so the upsell ladder holds.
+// Basic ($9.98/yr): the cheap "own your listing" entry rung. One owner photo, a
+// live outbound website link, and — most importantly — inquiry/lead delivery
+// (the customer's contact lands in the owner's inbox). The badge, review
+// collection, logo, and facet editing stay Verified+ so the upsell ladder holds.
 const BASIC_FLAGS: TierFlags = {
   ...FREE_FLAGS,
   maxImages: 1,
   canShowWebsiteLink: true,
+  canReceiveLeads: true,
 };
 
 const VERIFIED_FLAGS: TierFlags = {
@@ -107,6 +118,7 @@ const VERIFIED_FLAGS: TierFlags = {
   canCollectReviews: true,
   canEditFacets: true,
   canShowWebsiteLink: true,
+  canReceiveLeads: true,
   canEvents: false,
   baseTrainers: 0,
 };
@@ -198,6 +210,7 @@ export function getEntitlements(business: BusinessLike, now: Date = new Date()):
     canCollectReviews: flags.canCollectReviews,
     canEditFacets: flags.canEditFacets,
     canShowWebsiteLink: flags.canShowWebsiteLink,
+    canReceiveLeads: flags.canReceiveLeads,
     maxTrainers,
     canEvents: flags.canEvents,
     spotlightActive: spot !== null,
