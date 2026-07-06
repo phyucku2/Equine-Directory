@@ -10,14 +10,30 @@ manual-grants tiers); the plumbing is built now.
 | Tier (SubTier) | Price | Unlocks (on top of lower tiers) |
 |---|---|---|
 | **FREE** | $0 | crawled/claimed basics: name, map pin, category, hours, public reviews *display*. No owner photos/logo, no review collection, no facet editing. |
-| **BASIC** (entry, Goal 6) | **$9/yr** | own your listing: **1 owner photo** · **outbound website link** on the public listing. No badge/logo/review collection/facet editing — those stay Verified+ so the ladder holds. |
+| **BASIC** (entry, Goal 6) | **$9.98/yr** | own your listing: **1 owner photo** · **outbound website link** on the public listing · **inquiry/lead delivery** (the customer's message lands in the owner's inbox). No badge/logo/review collection/facet editing — those stay Verified+ so the ladder holds. |
 | **VERIFIED** (Tier 1) | **$2.99/mo or $25/yr** | verified badge · **5 owner images** · **1 logo** · **"Stalls Available" badge** overlay on images · **collect + respond to reviews** + show ratings · **edit rich facets** (disciplines/board/pricing/amenities/security/programs) · lead inbox |
 | **TEAM** (Tier 2) | Tier 1 + **$10/yr per trainer** | **trainer profiles** — **2 seats included**, +$10/yr each beyond 2. Trainer = name + 1 photo + bio (+ disciplines, certs, contact). Public trainer pages. |
 | **EVENTS** (Tier 3) | Tier 2 + (config, ~$49/yr) | publish **events/shows/clinics/camps** (dated) → public **event pages + calendar** |
 | **SPOTLIGHT** (Tier 4, add-on) | **$25/week** | geo-targeted **featured placement** in the barn's **town/city**; **max 3 per city**, auto-rotate weekly |
 
 Pricing lives in `web/src/lib/entitlements.ts` as cents config (easy to change):
-`{ basic: { yearly: 900 }, verified: { monthly: 299, yearly: 2500 }, trainerSeat: { yearly: 1000 }, events: { yearly: 4900 }, spotlight: { weekly: 2500 } }`.
+`{ basic: { yearly: 998 }, verified: { monthly: 299, yearly: 2500 }, trainerSeat: { yearly: 1000 }, events: { yearly: 4900 }, spotlight: { weekly: 2500 } }`.
+
+### Lead capture — the Zillow model (keep visitors on-site)
+Consumer inquiries are the core paid value, and they keep the visitor on the
+directory rather than sending traffic away:
+- **Capture is always free + on-site.** Every listing shows a "Contact this
+  stable" form (`InquiryForm`); the lead is stored for every barn regardless of
+  tier. "Contact" is the **primary** CTA; the outbound website link is demoted to
+  a small `rel="nofollow sponsored"` text link so clicks don't leak off-site.
+- **Delivery is the paid perk** (`canReceiveLeads`, BASIC+). Entitled barns get
+  the email alert + owner inbox. FREE/unclaimed barns' leads are **held**, and the
+  listing shows a **"N inquiries waiting — claim to read"** upsell — high-intent
+  claim bait. The consumer's experience is identical either way (we never reveal a
+  barn is unclaimed).
+- **The embeddable badge stays free for any *claimed* barn** (owner dashboard):
+  every badge on a barn's own site is a backlink to us, so we spread it as widely
+  as possible rather than gating it.
 
 ## Entitlements resolver
 

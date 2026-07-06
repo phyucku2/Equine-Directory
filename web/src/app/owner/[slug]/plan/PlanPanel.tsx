@@ -34,7 +34,7 @@ const TIERS: {
     key: "BASIC",
     name: "Basic",
     tagline: `${money(PRICES.basic.yearly)}/yr`,
-    unlocks: ["Own your listing", "1 owner photo", "Link to your website"],
+    unlocks: ["Receive customer inquiries in your inbox", "Own your listing", "1 owner photo", "Link to your website"],
     request: () => ({ kind: "basic" }),
   },
   {

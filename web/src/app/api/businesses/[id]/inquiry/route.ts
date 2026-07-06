@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createInquiry } from "@/lib/db/inquiry";
+import { getEntitlements } from "@/lib/entitlements";
 import { sendOwnerInquiryAlert } from "@/lib/email";
 import { checkRateLimit } from "@/lib/ratelimit";
 
@@ -59,10 +60,14 @@ export async function POST(
   const result = await createInquiry(id, { name, email, phone, message, userId });
   if (!result) return NextResponse.json({ error: "Business not found." }, { status: 404 });
 
-  // Email the barn at its contact address (if on file). Reply-To is the lead's
-  // email so the owner can respond directly.
-  if (result.business.email) {
-    await sendOwnerInquiryAlert(result.business.email, {
+  // The lead is always captured (above). Delivery is the paid perk (Zillow
+  // model): only barns entitled to receive leads (BASIC+) get the email alert.
+  // FREE/unclaimed barns' leads are held and drive the "N inquiries waiting —
+  // claim to read" upsell on the listing.
+  const canReceiveLeads = getEntitlements({ subscription: result.business.subscription }).canReceiveLeads;
+  const delivered = canReceiveLeads && Boolean(result.business.email);
+  if (delivered) {
+    await sendOwnerInquiryAlert(result.business.email!, {
       businessName: result.business.name,
       fromName: name,
       fromEmail: email,
@@ -77,10 +82,12 @@ export async function POST(
       entityType: "Business",
       entityId: result.business.id,
       performedBy: userId ? email : `guest:${email}`,
-      details: { inquiryId: result.inquiry.id, userId },
+      details: { inquiryId: result.inquiry.id, userId, delivered },
     },
   });
 
+  // The consumer's experience is identical either way — the barn is notified or
+  // will see the lead on claim; we never advertise that a barn is unclaimed.
   return NextResponse.json({
     ok: true,
     message: "Your inquiry was sent. The barn will reply to your email.",
