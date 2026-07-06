@@ -46,6 +46,11 @@ export function intentUrl(categorySlug: string, stateSlug: string, citySlug: str
   return `/${categorySlug}/${stateSlug}/${citySlug}`;
 }
 
+// Statewide category pillar (SEO Lever 2): e.g. /horse-boarding/florida
+export function categoryStateUrl(categorySlug: string, stateSlug: string): string {
+  return `/${categorySlug}/${stateSlug}`;
+}
+
 export function absoluteUrl(path: string): string {
   const base = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
   return `${base.replace(/\/$/, "")}${path}`;

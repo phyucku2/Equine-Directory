@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_BUSINESS_WHERE, PUBLIC_CATEGORY_SLUGS } from "@/lib/db/business";
-import { businessUrl, categoryUrl, stateUrl, countyUrl, cityUrl, eventUrl, eventsUrl, absoluteUrl } from "@/lib/urls";
+import { businessUrl, categoryUrl, categoryStateUrl, stateUrl, countyUrl, cityUrl, eventUrl, eventsUrl, absoluteUrl } from "@/lib/urls";
 import { isBusinessIndexable } from "@/lib/seo/indexing";
 import { getEventsForSitemap } from "@/lib/db/events";
+import { getCategoryStateCombos } from "@/lib/db/intent";
 import { GUIDES } from "@/lib/guides";
 
 export const revalidate = 86400;
@@ -112,12 +113,24 @@ async function locationsSitemap(): Promise<MetadataRoute.Sitemap> {
     add(absoluteUrl(countyUrl(state.slug, county.slug)), county.updatedAt);
     add(absoluteUrl(cityUrl(state.slug, city.slug)), city.updatedAt);
   }
-  return Array.from(entries.values()).map((e) => ({
+  const out: MetadataRoute.Sitemap = Array.from(entries.values()).map((e) => ({
     url: e.url,
     lastModified: e.lastModified,
     changeFrequency: "weekly" as const,
     priority: 0.6,
   }));
+
+  // Statewide category pillars (SEO Lever 2): /[category]/[state]. High-value
+  // long-tail hubs — slightly higher priority than a bare location page.
+  const combos = await getCategoryStateCombos(1000);
+  for (const c of combos) {
+    out.push({
+      url: absoluteUrl(categoryStateUrl(c.category, c.state)),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    });
+  }
+  return out;
 }
 
 // Published, currently-entitled events + the calendar index.
