@@ -20,6 +20,7 @@ export function Footer() {
             <li><Link href="/categories" className="hover:text-brass">Browse services</Link></li>
             <li><Link href="/events" className="hover:text-brass">Events &amp; camps</Link></li>
             <li><Link href="/guides" className="hover:text-brass">Owner guides</Link></li>
+            <li><Link href="/data" className="hover:text-brass">Industry data</Link></li>
             <li><Link href="/search" className="hover:text-brass">Search</Link></li>
           </ul>
         </div>
