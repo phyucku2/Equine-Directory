@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { StableCard } from "@/components/stable/StableCard";
-import { loadOwnedBusiness, toStableMarker } from "./_shared";
+import { loadOwnedBusinessWithEntitlements, toStableMarker } from "./_shared";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +13,18 @@ export default async function OwnerPreviewPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const business = await loadOwnedBusiness(slug);
-  if (!business) notFound();
+  const loaded = await loadOwnedBusinessWithEntitlements(slug);
+  if (!loaded) notFound();
+  const { business, entitlements } = loaded;
 
   const marker = toStableMarker(business);
   const pendingReviews = business.reviews.filter(
     (r) => r.isApproved && !r.ownerResponse,
   ).length;
   const newInquiries = business.inquiries.filter((i) => i.status === "NEW").length;
+  // FREE owners can't read leads yet — the count drives the upgrade (Zillow model).
+  const leadsLocked = !entitlements.canReceiveLeads;
+  const totalInquiries = business.inquiries.length;
 
   return (
     <div className="grid gap-8 lg:grid-cols-[320px_1fr]">
@@ -39,6 +43,26 @@ export default async function OwnerPreviewPage({
       </div>
 
       <div className="space-y-4">
+        {/* Lead-unlock upsell (claim→convert funnel). Free owners see the count
+            but must upgrade to read — the clearest $9.98 value prop. */}
+        {leadsLocked && totalInquiries > 0 && (
+          <div className="rounded-xl border border-brass/40 bg-brass/5 p-4">
+            <p className="text-sm font-semibold text-pine">
+              You have {totalInquiries} customer {totalInquiries === 1 ? "inquiry" : "inquiries"} waiting
+            </p>
+            <p className="mt-1 text-sm text-ink/70">
+              Upgrade to Basic ($9.98/yr) to read {totalInquiries === 1 ? "it" : "them"} and get emailed
+              when new ones arrive.
+            </p>
+            <Link
+              href={`/owner/${slug}/plan`}
+              className="mt-3 inline-block rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-cream transition hover:bg-pine/90"
+            >
+              Unlock inquiries →
+            </Link>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Stat label="Reviews" value={business.reviewCount} />
           <Stat
@@ -54,7 +78,7 @@ export default async function OwnerPreviewPage({
           <Stat label="Photos" value={business.images.length} />
         </div>
 
-        {(pendingReviews > 0 || newInquiries > 0) && (
+        {(pendingReviews > 0 || (newInquiries > 0 && !leadsLocked)) && (
           <div className="rounded-xl border border-brass/30 bg-brass/5 p-4">
             <p className="text-sm font-semibold text-pine">Needs your attention</p>
             <ul className="mt-2 space-y-1 text-sm text-ink/70">
@@ -66,7 +90,7 @@ export default async function OwnerPreviewPage({
                   </Link>
                 </li>
               )}
-              {newInquiries > 0 && (
+              {newInquiries > 0 && !leadsLocked && (
                 <li>
                   {newInquiries} new inquir{newInquiries === 1 ? "y" : "ies"} ·{" "}
                   <Link href={`/owner/${slug}/reviews?tab=inbox`} className="text-brass hover:underline">

@@ -26,11 +26,16 @@ directory rather than sending traffic away:
   stable" form (`InquiryForm`); the lead is stored for every barn regardless of
   tier. "Contact" is the **primary** CTA; the outbound website link is demoted to
   a small `rel="nofollow sponsored"` text link so clicks don't leak off-site.
-- **Delivery is the paid perk** (`canReceiveLeads`, BASIC+). Entitled barns get
-  the email alert + owner inbox. FREE/unclaimed barns' leads are **held**, and the
-  listing shows a **"N inquiries waiting — claim to read"** upsell — high-intent
-  claim bait. The consumer's experience is identical either way (we never reveal a
-  barn is unclaimed).
+- **Delivery + reading is the paid perk** (`canReceiveLeads`, BASIC+). Entitled
+  barns get the email alert and can read/reply in the owner inbox. For FREE owners
+  the lead PII is **redacted server-side** (name/email/phone/message never reach
+  the browser) and the owner inbox shows locked placeholder cards with an "Upgrade
+  to read" CTA — a real paywall, not a CSS blur. FREE/unclaimed barns' leads are
+  **held**, and the public listing shows a **"N inquiries waiting — claim to read"**
+  upsell. The claim→convert funnel then reinforces it: the owner dashboard shows a
+  "You have N inquiries waiting" banner and the Plan screen headlines "Unlock your
+  N waiting inquiries." The consumer's experience is identical either way (we never
+  reveal a barn is unclaimed).
 - **The embeddable badge stays free for any *claimed* barn** (owner dashboard):
   every badge on a barn's own site is a backlink to us, so we spread it as widely
   as possible rather than gating it.
