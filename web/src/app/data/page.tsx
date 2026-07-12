@@ -43,12 +43,28 @@ function Bar({ value, max, label, right }: { value: number; max: number; label: 
 }
 
 export default async function DataPage() {
-  const [national, states, categories, prices] = await Promise.all([
-    getNationalStats(),
-    getStateCounts(),
-    getCategoryCounts(),
-    getBoardingPriceByState(),
-  ]);
+  // Resilient to a build-time DB blip (cold Neon): render zeros/empty and let ISR
+  // (revalidate) repopulate at runtime rather than failing the whole build.
+  let national: Awaited<ReturnType<typeof getNationalStats>> = {
+    facilities: 0,
+    states: 0,
+    cities: 0,
+    avgRating: null,
+    reviews: 0,
+  };
+  let states: Awaited<ReturnType<typeof getStateCounts>> = [];
+  let categories: Awaited<ReturnType<typeof getCategoryCounts>> = [];
+  let prices: Awaited<ReturnType<typeof getBoardingPriceByState>> = [];
+  try {
+    [national, states, categories, prices] = await Promise.all([
+      getNationalStats(),
+      getStateCounts(),
+      getCategoryCounts(),
+      getBoardingPriceByState(),
+    ]);
+  } catch {
+    /* DB unreachable at build — ISR fills the study with real numbers at runtime. */
+  }
 
   const topStates = states.slice(0, 15);
   const maxState = topStates[0]?.facilities ?? 1;

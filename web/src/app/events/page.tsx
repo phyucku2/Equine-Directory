@@ -16,7 +16,16 @@ export const metadata: Metadata = {
 };
 
 export default async function EventsCalendarPage() {
-  const [events, featuredCamps] = await Promise.all([getUpcomingEvents(), getFeaturedCamps()]);
+  // DB may be unreachable at build (e.g. cold Neon); render empty and let ISR
+  // (revalidate) fill it on the first runtime request. A build must never fail
+  // on a transient DB blip — the sitemap uses the same guard.
+  const [events, featuredCamps] = await (async () => {
+    try {
+      return await Promise.all([getUpcomingEvents(), getFeaturedCamps()]);
+    } catch {
+      return [[], []] as [Awaited<ReturnType<typeof getUpcomingEvents>>, Awaited<ReturnType<typeof getFeaturedCamps>>];
+    }
+  })();
 
   // Group upcoming events by month for a simple calendar/list view.
   const groups = new Map<string, { label: string; key: string; items: typeof events }>();
