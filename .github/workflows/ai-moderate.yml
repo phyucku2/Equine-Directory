@@ -1,0 +1,103 @@
+name: AI moderate (grade pending queue)
+
+# Runs ai_moderate.py in the cloud (the dev sandbox / a laptop can't reach Neon,
+# and Windows has an ASCII-encoding bug in the HTTP stack). For each PENDING_REVIEW
+# business it fetches the site, re-grades each pending category with the LLM, and
+# — with apply=apply — publishes grade-3 confirmations / rejects grade-1s.
+#
+# Prerequisites (repo Settings → Secrets and variables → Actions → Secrets):
+#   - DATABASE_URL         (required)  Neon connection string
+#   - ANTHROPIC_API_KEY    (grading; recommended — proven working)
+#   - GEMINI_API_KEY       (optional grading fallback)
+#   - OPENAI_API_KEY       (optional grading fallback)
+#   - REVALIDATE_URL / REVALIDATE_SECRET  (optional) refresh the live site after apply
+# At least one grading key is required or every item is "left".
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "dry-run = preview only · apply = publish/reject decisions"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      limit:
+        description: "Cap number of businesses (blank = whole queue). Use e.g. 200 for a preview."
+        type: string
+        default: ""
+      state:
+        description: "2-letter state code to scope to (blank = nationwide)"
+        type: string
+        default: ""
+      no_fetch:
+        description: "Skip website fetch (fast, approve-only, cheaper)"
+        type: boolean
+        default: false
+      min_confidence:
+        description: "Min confidence to auto-approve"
+        type: string
+        default: "0.7"
+      concurrency:
+        description: "Parallel grading workers"
+        type: string
+        default: "8"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-moderate
+  cancel-in-progress: false
+
+jobs:
+  ai-moderate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run AI moderation
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Prefer Anthropic when its key is present; fall back otherwise.
+          GRADING_PROVIDERS: "anthropic,gemini,openai"
+          REVALIDATE_URL: ${{ secrets.REVALIDATE_URL }}
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          # Inputs via env (not string-interpolated into the shell) to avoid injection.
+          IN_APPLY: ${{ inputs.apply }}
+          IN_NOFETCH: ${{ inputs.no_fetch }}
+          IN_LIMIT: ${{ inputs.limit }}
+          IN_STATE: ${{ inputs.state }}
+          IN_MINCONF: ${{ inputs.min_confidence }}
+          IN_CONC: ${{ inputs.concurrency }}
+        run: |
+          set -euo pipefail
+          args=""
+          [ "$IN_APPLY" = "apply" ] && args="$args --apply"
+          [ "$IN_NOFETCH" = "true" ] && args="$args --no-fetch"
+          [ -n "$IN_LIMIT" ] && args="$args --limit $IN_LIMIT"
+          [ -n "$IN_STATE" ] && args="$args --state $IN_STATE"
+          args="$args --min-confidence $IN_MINCONF --concurrency $IN_CONC"
+          echo "Running: python ai_moderate.py$args"
+          python ai_moderate.py $args
+
+      - name: Upload decisions CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-moderation-decisions
+          path: crawler/out/ai-moderation-decisions.csv
+          if-no-files-found: warn
