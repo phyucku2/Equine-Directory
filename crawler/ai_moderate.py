@@ -41,6 +41,7 @@ import os
 import re
 import sys
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -159,6 +160,8 @@ def main() -> None:
     ap.add_argument("--limit", type=int, help="cap number of businesses (good for a first pass)")
     ap.add_argument("--no-fetch", dest="fetch", action="store_false", help="skip website fetch (fast; approve-only)")
     ap.add_argument("--min-confidence", type=float, default=0.6, help="min confidence to auto-approve (default 0.6)")
+    ap.add_argument("--concurrency", type=int, default=8,
+                    help="parallel grading workers (default 8; each does a website fetch + LLM call)")
     args = ap.parse_args()
 
     OUT.mkdir(parents=True, exist_ok=True)
@@ -171,19 +174,28 @@ def main() -> None:
               f"{f' (state={args.state})' if args.state else ''}"
               f"{' — DRY RUN' if not args.apply else ''}\n")
 
-        for i, biz in enumerate(queue, 1):
-            decisions = decide(biz, fetch=args.fetch, min_conf=args.min_confidence)
-            for d in decisions:
-                counts[d["decision"]] += 1
-                rows_out.append({"slug": biz["slug"], "name": biz["name"], **d})
-                if args.apply and d["decision"] in ("approve", "reject"):
-                    _set_category(cur, biz["id"], d["category_id"], d["decision"] == "approve")
-            if args.apply and any(d["decision"] in ("approve", "reject") for d in decisions):
-                _recompute_published(cur, biz["id"])
-                conn.commit()
-            if i % 50 == 0 or i == len(queue):
-                print(f"  {i}/{len(queue)} · approve {counts['approve']} "
-                      f"reject {counts['reject']} leave {counts['leave']}", flush=True)
+        # Grade concurrently (each `decide` is an independent website fetch + LLM
+        # call — the slow part), but keep all DB writes on this main thread: the
+        # psycopg cursor is not thread-safe. Workers grade ahead while we apply
+        # results in order. Grading has no shared mutable state, so it's safe to
+        # run in threads.
+        def grade_one(biz: dict) -> tuple[dict, list[dict]]:
+            return biz, decide(biz, fetch=args.fetch, min_conf=args.min_confidence)
+
+        workers = max(1, args.concurrency)
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            for i, (biz, decisions) in enumerate(pool.map(grade_one, queue), 1):
+                for d in decisions:
+                    counts[d["decision"]] += 1
+                    rows_out.append({"slug": biz["slug"], "name": biz["name"], **d})
+                    if args.apply and d["decision"] in ("approve", "reject"):
+                        _set_category(cur, biz["id"], d["category_id"], d["decision"] == "approve")
+                if args.apply and any(d["decision"] in ("approve", "reject") for d in decisions):
+                    _recompute_published(cur, biz["id"])
+                    conn.commit()
+                if i % 50 == 0 or i == len(queue):
+                    print(f"  {i}/{len(queue)} · approve {counts['approve']} "
+                          f"reject {counts['reject']} leave {counts['leave']}", flush=True)
 
     csv_path = OUT / "ai-moderation-decisions.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as fh:
