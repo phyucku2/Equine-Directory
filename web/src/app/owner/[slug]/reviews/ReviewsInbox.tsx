@@ -37,6 +37,7 @@ export function ReviewsInbox({
   businessId,
   slug,
   canRespond,
+  leadsLocked = false,
   reviews,
   inquiries,
   initialTab,
@@ -44,6 +45,7 @@ export function ReviewsInbox({
   businessId: string;
   slug: string;
   canRespond: boolean;
+  leadsLocked?: boolean;
   reviews: Review[];
   inquiries: Inquiry[];
   initialTab: "reviews" | "inbox";
@@ -82,9 +84,26 @@ export function ReviewsInbox({
         </div>
       ) : (
         <div className="space-y-3">
+          {leadsLocked && inquiries.length > 0 && (
+            <div className="rounded-xl border border-brass/40 bg-brass/5 p-4">
+              <p className="text-sm font-semibold text-pine">
+                {inquiries.length} {inquiries.length === 1 ? "inquiry is" : "inquiries are"} waiting to be read
+              </p>
+              <p className="mt-1 text-sm text-ink/70">
+                Reading and replying to customer inquiries is part of the Basic plan ($9.98/yr).
+                Upgrade to unlock every message and get emailed the moment a new one arrives.
+              </p>
+              <a
+                href={`/owner/${slug}/plan`}
+                className="mt-3 inline-block rounded-lg bg-pine px-4 py-2 text-sm font-semibold text-cream transition hover:bg-pine/90"
+              >
+                Unlock inquiries →
+              </a>
+            </div>
+          )}
           {inquiries.length === 0 && <p className="text-sm text-ink/50">No inquiries yet.</p>}
           {inquiries.map((i) => (
-            <InquiryCard key={i.id} businessId={businessId} inquiry={i} />
+            <InquiryCard key={i.id} businessId={businessId} inquiry={i} locked={leadsLocked} slug={slug} />
           ))}
         </div>
       )}
@@ -202,9 +221,47 @@ function ReviewCard({
   );
 }
 
-function InquiryCard({ businessId, inquiry }: { businessId: string; inquiry: Inquiry }) {
+function InquiryCard({
+  businessId,
+  inquiry,
+  locked = false,
+  slug,
+}: {
+  businessId: string;
+  inquiry: Inquiry;
+  locked?: boolean;
+  slug: string;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState(inquiry.status);
+
+  // Locked = FREE owner. The PII was redacted server-side, so there's nothing to
+  // reveal here — we render a placeholder + upgrade link. The date/NEW badge stay
+  // so the owner feels the value they're missing.
+  if (locked) {
+    return (
+      <div className="rounded-xl border border-leather/15 bg-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-ink/45">
+            <span aria-hidden>🔒</span> Inquiry hidden
+            {status === "NEW" && (
+              <span className="rounded-full bg-brass/15 px-2 py-0.5 text-[10px] font-semibold text-leather">
+                NEW
+              </span>
+            )}
+          </span>
+          <span className="text-xs text-ink/40">{new Date(inquiry.createdAt).toLocaleDateString()}</span>
+        </div>
+        <div className="mt-3 space-y-1.5" aria-hidden>
+          <div className="h-3 w-1/2 rounded bg-cream-dark" />
+          <div className="h-3 w-3/4 rounded bg-cream-dark" />
+        </div>
+        <a href={`/owner/${slug}/plan`} className="mt-3 inline-block text-sm font-semibold text-brass hover:underline">
+          Upgrade to read this message →
+        </a>
+      </div>
+    );
+  }
 
   async function setStatusTo(next: string) {
     setStatus(next);

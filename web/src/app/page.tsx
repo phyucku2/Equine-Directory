@@ -29,7 +29,13 @@ function SectionHeading({ eyebrow, title }: { eyebrow: string; title: string }) 
 }
 
 export default async function HomePage() {
-  const featured = await getFeatured(6);
+  // Resilient to a build-time DB blip (cold Neon): empty now, ISR fills at runtime.
+  let featured: Awaited<ReturnType<typeof getFeatured>> = [];
+  try {
+    featured = await getFeatured(6);
+  } catch {
+    /* DB unreachable at build — render without the featured rail; ISR repopulates. */
+  }
 
   return (
     <div>

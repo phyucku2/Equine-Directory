@@ -11,7 +11,11 @@ import { getActiveSpotlightsForArea } from "@/lib/db/spotlight";
 export const revalidate = 86400;
 
 export async function generateStaticParams() {
-  return [{ state: "florida" }];
+  // Defer to on-demand ISR (revalidate below) rather than prerendering at build:
+  // this page queries the DB, and the build must not hard-fail if the DB is
+  // briefly unreachable at build time (cold Neon). First runtime request builds +
+  // caches each state page, where the DB is reachable.
+  return [];
 }
 
 export async function generateMetadata({

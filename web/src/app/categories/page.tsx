@@ -19,18 +19,26 @@ export const metadata: Metadata = {
 // slugs beyond the first (e.g. trainer-instructor under Training) are listed as
 // secondary links inside the tile.
 export default async function CategoriesIndexPage() {
-  const tiles = await Promise.all(
-    SERVICE_SEGMENTS.map(async (seg) => {
-      const cats = await Promise.all(
-        seg.slugs.map(async (slug) => ({
-          slug,
-          cat: await getCategoryBySlug(slug),
-          count: await countByCategory(slug),
-        })),
+  // Resilient to a build-time DB blip (cold Neon): render no tiles now, ISR fills
+  // them at runtime rather than failing the build.
+  const tiles = await (async () => {
+    try {
+      return await Promise.all(
+        SERVICE_SEGMENTS.map(async (seg) => {
+          const cats = await Promise.all(
+            seg.slugs.map(async (slug) => ({
+              slug,
+              cat: await getCategoryBySlug(slug),
+              count: await countByCategory(slug),
+            })),
+          );
+          return { seg, cats: cats.filter((c) => c.cat !== null) };
+        }),
       );
-      return { seg, cats: cats.filter((c) => c.cat !== null) };
-    }),
-  );
+    } catch {
+      return [];
+    }
+  })();
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
