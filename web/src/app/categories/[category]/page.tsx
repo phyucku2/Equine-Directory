@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCategoryBySlug } from "@/lib/db/category";
-import { getByCategory, countByCategory, isPublicCategorySlug, PUBLIC_CATEGORY_SLUGS } from "@/lib/db/business";
+import { getByCategory, countByCategory, isPublicCategorySlug } from "@/lib/db/business";
 import { getStatesForCategory } from "@/lib/db/intent";
 import { categoryUrl, categoryStateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
@@ -16,9 +16,12 @@ import { robots, isHubIndexable } from "@/lib/seo/indexing";
 export const revalidate = 86400;
 
 export function generateStaticParams() {
-  // Every public catalog category gets a pre-rendered hub (boarding, training,
-  // vets, farriers, tack, feed — see src/lib/catalog.ts).
-  return PUBLIC_CATEGORY_SLUGS.map((category) => ({ category }));
+  // Defer to on-demand ISR (revalidate below) instead of prerendering at build:
+  // these hubs query the DB, and a build must not hard-fail if the DB is briefly
+  // unreachable at build time (cold Neon). First runtime request builds + caches
+  // each hub, where the DB is reachable. (PUBLIC_CATEGORY_SLUGS still gates which
+  // category slugs are valid via isPublicCategorySlug in the page.)
+  return [];
 }
 
 export async function generateMetadata({
