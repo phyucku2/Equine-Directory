@@ -1,0 +1,149 @@
+name: Recover old database (auto dump→restore when quota resets)
+
+# Option B recovery: the old Neon project (ep-wandering-math) holds the ~42k
+# scraped listings but is currently locked out by Neon's free-tier data-transfer
+# quota. That quota resets monthly. This workflow polls the old database on a
+# schedule and, the moment it accepts a connection again, dumps everything and
+# restores it into the current database (DATABASE_URL) — hands-off, no cost.
+#
+# It is a safe no-op every time it runs UNTIL both are true:
+#   1. OLD_DATABASE_URL secret is set (the old connection string, with password)
+#   2. the old DB is reachable (quota has reset) AND the new DB isn't already full
+# So it can sit armed and simply wake up, find the old DB still locked, and exit 0.
+#
+# Prerequisites (repo Settings → Secrets and variables → Actions → Secrets):
+#   - DATABASE_URL       (required)  the CURRENT/new Neon DB — restore target
+#   - OLD_DATABASE_URL   (required)  the OLD Neon DB (ep-wandering-math) — dump source
+#                                    Copy from your local crawler/.env DATABASE_URL line.
+#
+# Once it succeeds it stops touching anything: the >100-Business guard makes every
+# subsequent run a no-op. Safe to leave scheduled; delete the workflow after recovery.
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    # Hourly — cheap poll; the real work only happens once, when the quota resets.
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: recover-old-db
+  cancel-in-progress: false
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OLD_DATABASE_URL: ${{ secrets.OLD_DATABASE_URL }}
+      PGCONNECT_TIMEOUT: "20"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Guard — required secrets present
+        run: |
+          set -euo pipefail
+          if [ -z "${OLD_DATABASE_URL:-}" ]; then
+            echo "OLD_DATABASE_URL not set — nothing to recover from. Add it as a repo"
+            echo "secret (the old crawler/.env DATABASE_URL) to arm this workflow. Exiting no-op."
+            exit 0
+          fi
+          if [ -z "${DATABASE_URL:-}" ]; then
+            echo "::error::DATABASE_URL (restore target) not set."
+            exit 1
+          fi
+          echo "armed=true" >> "$GITHUB_ENV"
+
+      - name: Install PostgreSQL 18 client (matches Neon PG 18)
+        if: env.armed == 'true'
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] \
+            https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-18
+          echo "PATH=/usr/lib/postgresql/18/bin:$PATH" >> "$GITHUB_ENV"
+          /usr/lib/postgresql/18/bin/pg_dump --version
+
+      - name: Probe — is the old DB reachable yet?
+        if: env.armed == 'true'
+        run: |
+          set -euo pipefail
+          echo "Probing old database (quota may still be exhausted)…"
+          if psql "$OLD_DATABASE_URL" -tAc 'SELECT 1' >/dev/null 2>probe.err; then
+            echo "old_reachable=true" >> "$GITHUB_ENV"
+            echo "✓ Old database accepted a connection — quota has reset."
+          else
+            echo "old_reachable=false" >> "$GITHUB_ENV"
+            echo "Old database still refusing connections (likely quota not yet reset):"
+            sed 's/^/    /' probe.err || true
+            echo "Will try again on the next scheduled run. Exiting no-op."
+          fi
+
+      - name: Guard — is the new DB already populated?
+        if: env.armed == 'true' && env.old_reachable == 'true'
+        run: |
+          set -euo pipefail
+          # Distinguish recovered (42k) from fresh seed (<100 sample rows).
+          count=$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM "Business"' 2>/dev/null || echo 0)
+          count=$(echo "$count" | tr -dc '0-9')
+          count=${count:-0}
+          echo "Current DB has $count Business rows."
+          if [ "$count" -gt 100 ]; then
+            echo "New DB already has $count listings (>100) — recovery already done. Exiting no-op."
+            echo "do_restore=false" >> "$GITHUB_ENV"
+          else
+            echo "do_restore=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Dump old DB → restore into new DB
+        if: env.armed == 'true' && env.old_reachable == 'true' && env.do_restore == 'true'
+        run: |
+          set -euo pipefail
+          echo "==> Dumping old database (custom format, data + schema, no owner/ACL)…"
+          pg_dump "$OLD_DATABASE_URL" \
+            --format=custom --no-owner --no-privileges \
+            --file=old-db.dump
+          ls -lh old-db.dump
+          echo "==> Restoring into current database (clean existing objects first)…"
+          # --clean --if-exists drops the seed/sample objects before recreating them
+          # from the old dump. Ignore the expected noise from DROPs on a fresh DB.
+          pg_restore \
+            --dbname="$DATABASE_URL" \
+            --clean --if-exists --no-owner --no-privileges \
+            --no-comments \
+            old-db.dump || echo "pg_restore reported non-fatal errors (typically DROP-not-exists on the fresh target) — verifying below."
+
+      - name: Reconcile Prisma migration state
+        if: env.armed == 'true' && env.old_reachable == 'true' && env.do_restore == 'true'
+        working-directory: web
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          # The old dump carries the old schema + _prisma_migrations history. Apply
+          # any migrations authored since, so the restored DB matches current schema.
+          npx prisma migrate deploy
+
+      - name: Verify recovery
+        if: env.armed == 'true' && env.old_reachable == 'true' && env.do_restore == 'true'
+        run: |
+          set -euo pipefail
+          count=$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM "Business"' | tr -dc '0-9')
+          pub=$(psql "$DATABASE_URL" -tAc 'SELECT count(*) FROM "Business" WHERE "isPublished" = true' | tr -dc '0-9')
+          echo "──────────────────────────────────────────────"
+          echo "  Recovery complete."
+          echo "  Total businesses:     ${count:-0}"
+          echo "  Published businesses: ${pub:-0}"
+          echo "──────────────────────────────────────────────"
+          if [ "${count:-0}" -le 100 ]; then
+            echo "::error::Restore ran but Business count is still ${count:-0} — investigate the pg_restore log above."
+            exit 1
+          fi
+          echo "The live site's listings will refresh via ISR."
