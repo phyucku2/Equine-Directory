@@ -96,15 +96,16 @@ jobs:
       - name: Scrape with gosom (free Google-Maps scraper)
         run: |
           set -euo pipefail
-          # NOTE: do NOT mount a volume over /opt — the gosom image ships its
-          # Playwright-Go browser driver at /opt/ms-playwright-go, and mounting an
-          # empty/foreign volume there shadows the driver ("driver exists but
-          # version not X" → browser never launches → 0 results). Only bind the
-          # query input and the output dir.
+          # Use the '-rod' image variant (go-rod backend, downloads its own
+          # Chromium) — the default/playwright images are currently broken:
+          # "could not install driver: driver exists but version not 1.60.0 in
+          # /opt/ms-playwright-go" → browser never launches → 0 results. The rod
+          # build sidesteps the playwright-go driver entirely. Pinned for
+          # reproducibility. Only bind the query input and the output dir.
           docker run --rm \
             -v "$(pwd)/queries-${{ matrix.state }}.txt:/queries.txt:ro" \
             -v "$(pwd)/out:/out" \
-            gosom/google-maps-scraper \
+            gosom/google-maps-scraper:v1.11.1-rod \
             -input /queries.txt -results "/out/results-${{ matrix.state }}.json" \
             -json -depth "${{ inputs.depth }}" -c 8 -exit-on-inactivity 3m \
             || echo "gosom exited non-zero (throttled / no results) — will ingest whatever landed."
