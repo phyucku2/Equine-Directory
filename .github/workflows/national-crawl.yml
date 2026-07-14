@@ -1,0 +1,132 @@
+name: National crawl (gosom → ingest, free rebuild)
+
+# Cloud rebuild of the full listings dataset — the same free method that produced
+# the original 40k+ (gosom Google-Maps scraper → ingest), but running in GitHub
+# Actions instead of a local Windows box + Docker Desktop. No Google API billing:
+# gosom scrapes public Maps. For each state it generates the query set, runs the
+# gosom Docker scraper, and ingests the JSON into DATABASE_URL via
+# `run.py --source gmaps-file` (heuristic grading; the AI-moderation workflow
+# grades the pending queue afterward). Idempotent: upserts by stable keys, so a
+# re-run of a state never duplicates.
+#
+# Prerequisites (repo Settings → Secrets and variables → Actions → Secrets):
+#   - DATABASE_URL   (required)  the CURRENT/new Neon DB — ingest target.
+# The taxonomy (categories + US states/counties) is already seeded in that DB.
+#
+# States run a few at a time (polite to Google) and are fully isolated — a
+# throttled or empty state can't fail the others (fail-fast is off).
+
+on:
+  workflow_dispatch:
+    inputs:
+      states:
+        description: "Space/comma-separated 2-letter states, or 'all' (priority-ordered 47)"
+        type: string
+        default: "all"
+      depth:
+        description: "gosom depth per query (higher = deeper scroll, more results, slower)"
+        type: string
+        default: "20"
+      max_parallel:
+        description: "How many states to scrape at once (keep low to avoid Google throttling)"
+        type: string
+        default: "3"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: national-crawl
+  cancel-in-progress: false
+
+jobs:
+  prep:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+      count: ${{ steps.build.outputs.count }}
+    steps:
+      - id: build
+        env:
+          IN_STATES: ${{ inputs.states }}
+        run: |
+          set -euo pipefail
+          # Priority-ordered by rough horse population — highest-value first, so a
+          # partial run still captures the states that matter most.
+          ALL="TX KY OK MO OH TN NC GA VA PA CO IL MI IN WI AL WA MN IA KS AR MS NE SC AZ NM OR ID MD NY NJ MA WV WY MT ND SD UT NV CT NH ME VT DE RI FL CA"
+          if [ -z "${IN_STATES// /}" ] || [ "$IN_STATES" = "all" ]; then
+            STATES="$ALL"
+          else
+            STATES=$(echo "$IN_STATES" | tr ',' ' ' | tr 'a-z' 'A-Z')
+          fi
+          arr=$(printf '%s\n' $STATES | jq -R . | jq -cs .)
+          echo "matrix=$arr" >> "$GITHUB_OUTPUT"
+          echo "count=$(printf '%s\n' $STATES | wc -w)" >> "$GITHUB_OUTPUT"
+          echo "Will crawl: $STATES"
+
+  crawl:
+    needs: prep
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(inputs.max_parallel) }}
+      matrix:
+        state: ${{ fromJSON(needs.prep.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Generate Google-Maps queries for ${{ matrix.state }}
+        run: |
+          set -euo pipefail
+          python gen_gmaps_queries.py --state "${{ matrix.state }}" --out "queries-${{ matrix.state }}.txt"
+          echo "Query lines: $(wc -l < queries-${{ matrix.state }}.txt)"
+          mkdir -p out
+
+      - name: Scrape with gosom (free Google-Maps scraper)
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "gmaps-cache-${{ matrix.state }}:/opt" \
+            -v "$(pwd)/queries-${{ matrix.state }}.txt:/queries.txt:ro" \
+            -v "$(pwd)/out:/out" \
+            gosom/google-maps-scraper \
+            -input /queries.txt -results "/out/results-${{ matrix.state }}.json" \
+            -json -depth "${{ inputs.depth }}" -c 8 -exit-on-inactivity 3m \
+            || echo "gosom exited non-zero (throttled / no results) — will ingest whatever landed."
+          if [ -f "out/results-${{ matrix.state }}.json" ]; then
+            echo "Result bytes: $(wc -c < out/results-${{ matrix.state }}.json)"
+          else
+            echo "No results file produced for ${{ matrix.state }}."
+          fi
+
+      - name: Ingest ${{ matrix.state }} into the database
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CRAWL_STATE: ${{ matrix.state }}
+        run: |
+          set -euo pipefail
+          if [ ! -f "out/results-${{ matrix.state }}.json" ]; then
+            echo "Nothing to ingest for ${{ matrix.state }} (no results file). Skipping."
+            exit 0
+          fi
+          echo "Ingesting ${{ matrix.state }}…"
+          python run.py --source gmaps-file --file "out/results-${{ matrix.state }}.json" --no-llm
+
+      - name: Upload raw results (${{ matrix.state }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gmaps-results-${{ matrix.state }}
+          path: crawler/out/results-${{ matrix.state }}.json
+          if-no-files-found: warn
