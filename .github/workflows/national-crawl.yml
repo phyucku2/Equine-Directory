@@ -96,18 +96,22 @@ jobs:
       - name: Scrape with gosom (free Google-Maps scraper)
         run: |
           set -euo pipefail
+          # NOTE: do NOT mount a volume over /opt — the gosom image ships its
+          # Playwright-Go browser driver at /opt/ms-playwright-go, and mounting an
+          # empty/foreign volume there shadows the driver ("driver exists but
+          # version not X" → browser never launches → 0 results). Only bind the
+          # query input and the output dir.
           docker run --rm \
-            -v "gmaps-cache-${{ matrix.state }}:/opt" \
             -v "$(pwd)/queries-${{ matrix.state }}.txt:/queries.txt:ro" \
             -v "$(pwd)/out:/out" \
             gosom/google-maps-scraper \
             -input /queries.txt -results "/out/results-${{ matrix.state }}.json" \
             -json -depth "${{ inputs.depth }}" -c 8 -exit-on-inactivity 3m \
             || echo "gosom exited non-zero (throttled / no results) — will ingest whatever landed."
-          if [ -f "out/results-${{ matrix.state }}.json" ]; then
+          if [ -s "out/results-${{ matrix.state }}.json" ]; then
             echo "Result bytes: $(wc -c < out/results-${{ matrix.state }}.json)"
           else
-            echo "No results file produced for ${{ matrix.state }}."
+            echo "::warning::No results (empty scrape) for ${{ matrix.state }}."
           fi
 
       - name: Ingest ${{ matrix.state }} into the database
@@ -116,8 +120,8 @@ jobs:
           CRAWL_STATE: ${{ matrix.state }}
         run: |
           set -euo pipefail
-          if [ ! -f "out/results-${{ matrix.state }}.json" ]; then
-            echo "Nothing to ingest for ${{ matrix.state }} (no results file). Skipping."
+          if [ ! -s "out/results-${{ matrix.state }}.json" ]; then
+            echo "Nothing to ingest for ${{ matrix.state }} (no/empty results file). Skipping."
             exit 0
           fi
           echo "Ingesting ${{ matrix.state }}…"
