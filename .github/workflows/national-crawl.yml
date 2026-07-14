@@ -53,7 +53,9 @@ jobs:
           set -euo pipefail
           # Priority-ordered by rough horse population — highest-value first, so a
           # partial run still captures the states that matter most.
-          ALL="TX KY OK MO OH TN NC GA VA PA CO IL MI IN WI AL WA MN IA KS AR MS NE SC AZ NM OR ID MD NY NJ MA WV WY MT ND SD UT NV CT NH ME VT DE RI FL CA"
+          # The contiguous lower-48 (excludes AK/HI), priority-ordered by rough
+          # horse population — highest-value first.
+          ALL="TX KY OK MO OH TN NC GA VA PA CO IL MI IN WI AL WA MN IA KS AR MS LA NE SC AZ NM OR ID MD NY NJ MA WV WY MT ND SD UT NV CT NH ME VT DE RI FL CA"
           if [ -z "${IN_STATES// /}" ] || [ "$IN_STATES" = "all" ]; then
             STATES="$ALL"
           else
