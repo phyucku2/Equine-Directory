@@ -29,6 +29,14 @@ export const SERVICE_SEGMENTS: ServiceSegment[] = [
   { key: "farriers", label: "Farriers", noun: ["farrier", "farriers"], slugs: ["farrier"] },
   { key: "tack", label: "Tack", noun: ["tack store", "tack stores"], slugs: ["tack-shop"] },
   { key: "feed", label: "Feed", noun: ["feed store", "feed stores"], slugs: ["feed-forage"] },
+  // Owner decision (2026-07-15): tour/experience operators surfaced by the
+  // crawl stay listed — under their own vertical rather than being culled.
+  {
+    key: "trailrides",
+    label: "Trail Rides",
+    noun: ["trail ride", "trail rides"],
+    slugs: ["recreational-trail-guest-ranch"],
+  },
 ];
 
 /** Every publicly browsable category slug (union of the segments). */
