@@ -46,6 +46,25 @@ jobs:
       matrix: ${{ steps.build.outputs.matrix }}
       count: ${{ steps.build.outputs.count }}
     steps:
+      - uses: actions/checkout@v4
+
+      # Apply DB migrations once before the fan-out. Critical: this includes the
+      # Location.name trigram index that makes the ingest's city resolver
+      # index-backed (without it the national ingest is O(n^2) and pathologically
+      # slow). Idempotent — a no-op when already applied.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Apply DB migrations
+        working-directory: web
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          npm ci --no-audit --no-fund
+          npx prisma migrate deploy
+
       - id: build
         env:
           IN_STATES: ${{ inputs.states }}
