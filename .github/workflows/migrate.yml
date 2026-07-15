@@ -6,6 +6,11 @@ name: Migrate database
 
 on:
   workflow_dispatch:
+    inputs:
+      resolve_rolled_back:
+        description: "Name of a failed migration to mark rolled-back before deploy (P3009 recovery). Blank = skip."
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -32,6 +37,14 @@ jobs:
       - name: Apply migrations
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          RESOLVE: ${{ inputs.resolve_rolled_back }}
         run: |
+          set -euo pipefail
+          # Recover from a P3009 (a migration left in a failed state, e.g. by a
+          # cancelled run): mark it rolled-back so deploy re-applies it cleanly.
+          if [ -n "${RESOLVE:-}" ]; then
+            echo "Resolving failed migration as rolled-back: $RESOLVE"
+            npx prisma migrate resolve --rolled-back "$RESOLVE"
+          fi
           npx prisma migrate deploy
           npx prisma migrate status
