@@ -60,8 +60,13 @@ jobs:
       - name: Apply DB migrations
         working-directory: web
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POOLED_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          set -euo pipefail
+          # Direct (non-pooled) endpoint for migrations — Neon's pooler leaks
+          # Prisma's migration advisory lock and causes P1002 timeouts. Strip
+          # "-pooler" to get the direct host.
+          export DATABASE_URL="${POOLED_URL/-pooler/}"
           npm ci --no-audit --no-fund
           npx prisma migrate deploy
 

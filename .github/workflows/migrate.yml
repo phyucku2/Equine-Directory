@@ -36,10 +36,17 @@ jobs:
         run: npm ci
       - name: Apply migrations
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POOLED_URL: ${{ secrets.DATABASE_URL }}
           RESOLVE: ${{ inputs.resolve_rolled_back }}
         run: |
           set -euo pipefail
+          # Run migrations over the DIRECT (non-pooled) endpoint. Neon's pooler
+          # leaks Prisma's migration advisory lock across the pool (a finished
+          # command's server session lingers still holding it), so the next
+          # command times out with P1002. The direct endpoint releases the lock
+          # the moment the process exits. Derive it by stripping "-pooler".
+          export DATABASE_URL="${POOLED_URL/-pooler/}"
+          echo "Using direct endpoint: $(echo "$DATABASE_URL" | sed -E 's#(://)[^@]*@#\1***@#')"
           # Recover from a P3009 (a migration left in a failed state, e.g. by a
           # cancelled run): mark it rolled-back so deploy re-applies it cleanly.
           if [ -n "${RESOLVE:-}" ]; then
