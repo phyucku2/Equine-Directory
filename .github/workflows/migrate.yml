@@ -47,6 +47,19 @@ jobs:
           # the moment the process exits. Derive it by stripping "-pooler".
           export DATABASE_URL="${POOLED_URL/-pooler/}"
           echo "Using direct endpoint: $(echo "$DATABASE_URL" | sed -E 's#(://)[^@]*@#\1***@#')"
+
+          # Clear a leaked Prisma migration advisory lock (P1002). Neon's pooler
+          # can leave a finished migrate command's server session alive still
+          # holding pg_advisory_lock(72707369); because the live site keeps the
+          # compute warm, that session never idles out and every subsequent
+          # migrate times out. Raw SQL via `db execute` takes NO advisory lock,
+          # so use it to terminate ONLY backends holding Prisma's specific
+          # migration lock (objid 72707369) — app connections are untouched.
+          echo "Clearing stale holders of Prisma's migration advisory lock (72707369)…"
+          printf "%s\n" \
+            "SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype = 'advisory' AND objid = 72707369 AND pid <> pg_backend_pid();" \
+            | npx prisma db execute --stdin --url "$DATABASE_URL" || echo "(no holders / execute skipped)"
+
           # Recover from a P3009 (a migration left in a failed state, e.g. by a
           # cancelled run): mark it rolled-back so deploy re-applies it cleanly.
           if [ -n "${RESOLVE:-}" ]; then
