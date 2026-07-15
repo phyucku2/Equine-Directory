@@ -17,12 +17,28 @@ export async function GET(request: Request) {
 
   const key = process.env.GOOGLE_MAPS_API_KEY;
   if (!key) {
-    return new Response("photo proxy not configured", { status: 503 });
+    // Not a server fault: with no Places key the proxy is intentionally off
+    // (the gosom-sourced catalog stores no Places photos). Old crawler-era
+    // photo URLs are still indexed by bots — answer 404 and let the edge
+    // cache it so they stop counting as 5xx anomalies.
+    return new Response("photos not available", {
+      status: 404,
+      headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+    });
   }
 
   const upstream = `https://places.googleapis.com/v1/${ref}/media?maxWidthPx=${w}&key=${key}`;
   const res = await fetch(upstream, { cache: "force-cache" });
   if (!res.ok || !res.body) {
+    // Google refusing the ref (expired/invalid — common for stale indexed
+    // URLs) is the requester's 404, cached to stop repeat fetches from
+    // burning quota; only a genuine Google 5xx surfaces as 502.
+    if (res.status < 500) {
+      return new Response("photo not found", {
+        status: 404,
+        headers: { "Cache-Control": "public, max-age=3600, s-maxage=86400" },
+      });
+    }
     return new Response("upstream error", { status: 502 });
   }
 
