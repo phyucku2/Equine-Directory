@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { getCategoryBySlug } from "@/lib/db/category";
 import { getStateBySlug } from "@/lib/db/location";
 import { getByCategoryAndLocation, isPublicCategorySlug } from "@/lib/db/business";
@@ -165,6 +166,9 @@ export default async function CategoryStatePage({
           </div>
         </section>
       )}
+
+      {/* One ad unit per page, below the listings + FAQ (owner: tasteful, minimal). */}
+      <AdSlot />
 
       <div className="mt-10 flex flex-wrap gap-3 text-sm">
         <Link href={categoryUrl(cat.slug)} className="text-brass hover:underline">

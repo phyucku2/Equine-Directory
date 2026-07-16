@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { AdSlot } from "@/components/ads/AdSlot";
 import { GUIDES, getGuide } from "@/lib/guides";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { JsonLd } from "@/components/JsonLd";
@@ -64,6 +65,9 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
           </section>
         ))}
       </article>
+
+      {/* One ad unit per page, after the article (owner: tasteful, minimal). */}
+      <AdSlot />
 
       <div className="mt-12 rounded-2xl bg-pine px-6 py-8 text-center text-cream">
         <p className="text-lg font-semibold">Ready to look?</p>
