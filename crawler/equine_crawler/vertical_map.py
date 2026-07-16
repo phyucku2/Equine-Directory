@@ -35,6 +35,13 @@ DIRECT_TYPE_MAP: list[tuple[str, str]] = [
     ("dude ranch", TRAIL),
     ("horse rental", TRAIL),
     ("carriage ride", TRAIL),
+    # Barn types LAST so the specific verticals above win first: an adjacent
+    # sweep (vet/trainer/…) that surfaces a plain boarding barn should publish
+    # it as boarding, not queue it under the searched vertical.
+    ("horse boarding", "horse-boarding"),
+    ("boarding stable", "horse-boarding"),
+    ("equestrian facility", "horse-boarding"),
+    ("stable", "horse-boarding"),
 ]
 
 # Vets publish as equine vets only with an equine signal in the text (rural
