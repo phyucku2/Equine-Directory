@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { track } from "@/lib/analytics/track";
+
 // One-field newsletter capture (growth-and-pipeline.md §4). Rendered in the
 // footer; posts to /api/newsletter with a honeypot field for bots.
 export function NewsletterSignup({ source = "footer" }: { source?: string }) {
@@ -27,6 +29,7 @@ export function NewsletterSignup({ source = "footer" }: { source?: string }) {
       }
       setState("done");
       setMessage("You're in! Watch for barn news and new-listing alerts.");
+      track("newsletter_signup", { source });
     } catch {
       setState("error");
       setMessage("Network error — try again.");

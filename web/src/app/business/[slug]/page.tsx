@@ -277,6 +277,8 @@ export default async function BusinessPage({
             <div className="mt-5 flex flex-wrap items-center gap-3">
               <a
                 href="#contact"
+                data-track="contact_intent"
+                data-track-label="header"
                 className="rounded-lg bg-pine px-5 py-2 font-medium text-cream transition hover:bg-pine-light"
               >
                 Contact this stable
@@ -284,6 +286,8 @@ export default async function BusinessPage({
               {phoneHref && (
                 <a
                   href={phoneHref}
+                  data-track="call_click"
+                  data-track-label="header"
                   className="rounded-lg border border-leather/25 px-4 py-2 font-medium text-pine transition hover:border-brass hover:text-brass"
                 >
                   Call {business.phone}
@@ -294,6 +298,7 @@ export default async function BusinessPage({
                   href={site}
                   target="_blank"
                   rel="noopener noreferrer nofollow sponsored"
+                  data-track="website_click"
                   className="text-sm text-ink/55 underline decoration-leather/30 underline-offset-2 hover:text-brass"
                 >
                   Visit website ↗
@@ -647,6 +652,8 @@ export default async function BusinessPage({
         <div className="mx-auto flex max-w-5xl gap-2">
           <a
             href="#contact"
+            data-track="contact_intent"
+            data-track-label="mobile-bar"
             className="flex-1 rounded-lg bg-pine py-2.5 text-center font-semibold text-cream transition hover:bg-pine-light"
           >
             Contact
@@ -654,6 +661,8 @@ export default async function BusinessPage({
           {phoneHref && (
             <a
               href={phoneHref}
+              data-track="call_click"
+              data-track-label="mobile-bar"
               className="flex-1 rounded-lg border border-pine/30 py-2.5 text-center font-semibold text-pine transition hover:border-brass hover:text-brass"
             >
               Call
