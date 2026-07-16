@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { searchBusinesses, getCategoryFacets, type SearchParams } from "@/lib/db/search";
+import { parseNearMe } from "@/lib/geo-intent";
 import { BusinessCard } from "@/components/business/BusinessCard";
+import { NearMeResults } from "@/components/search/NearMeResults";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { Pagination } from "@/components/Pagination";
 import {
@@ -123,7 +125,11 @@ export default async function SearchPage({
   searchParams: Promise<RawParams>;
 }) {
   const raw = await searchParams;
-  const params = toSearchParams(raw);
+  // "horseback riding near me" is proximity intent, not a keyword — strip the
+  // "near me" phrase and geo-sort (see NearMeResults). The residual ("horseback
+  // riding") still drives the facet counts and the no-geo keyword fallback.
+  const { nearMe, residual } = parseNearMe(raw.q);
+  const params = toSearchParams(nearMe ? { ...raw, q: residual } : raw);
   const [results, facets] = await Promise.all([
     searchBusinesses(params),
     getCategoryFacets(params),
@@ -362,8 +368,9 @@ export default async function SearchPage({
       )}
 
       <p className="mt-4 text-sm text-ink/55">
-        {results.total} {results.total === 1 ? "stable" : "stables"}
-        {raw.q ? ` for “${raw.q}”` : ""}
+        {nearMe
+          ? `📍 Nearest you${residual ? ` · ${residual}` : ""}`
+          : `${results.total} ${results.total === 1 ? "stable" : "stables"}${raw.q ? ` for “${raw.q}”` : ""}`}
       </p>
 
       {/* Mobile filter disclosure (no-JS friendly) */}
@@ -377,7 +384,9 @@ export default async function SearchPage({
         <aside className="hidden lg:block">{filters}</aside>
 
         <div>
-          {results.items.length === 0 ? (
+          {nearMe ? (
+            <NearMeResults q={residual} category={raw.category} />
+          ) : results.items.length === 0 ? (
             <p className="rounded-xl border border-dashed border-leather/25 bg-white p-8 text-center text-ink/55">
               No matches. Try a city like “Ocala” or “Davie”, or clear your filters.
             </p>

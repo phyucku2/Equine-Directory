@@ -70,3 +70,31 @@ export function countNoun(key: string, count: number): string {
   if (!seg) return count === 1 ? "result" : "results";
   return seg.noun[count === 1 ? 0 : 1];
 }
+
+// Lightweight free-text → segment matcher for "near me" search intent:
+// "horseback riding near me" → the Trail Rides segment, "farrier near me" →
+// Farriers, etc. Not a general classifier — just the service words people
+// actually type. First match wins by list order, so multi-word phrases
+// (trail rides, riding school) are listed before the bare words they contain.
+const SEGMENT_SYNONYMS: { key: string; words: string[] }[] = [
+  {
+    key: "trailrides",
+    words: ["horseback riding", "horse riding", "trail riding", "trail ride", "trail", "dude ranch", "guest ranch", "horseback"],
+  },
+  { key: "vets", words: ["veterinarian", "veterinary", "equine vet", "horse vet", "vet"] },
+  { key: "farriers", words: ["farrier", "horseshoe", "hoof", "shoeing"] },
+  { key: "tack", words: ["tack shop", "tack store", "tack", "saddlery", "saddle"] },
+  { key: "feed", words: ["feed store", "feed", "hay", "forage", "grain"] },
+  { key: "training", words: ["riding school", "riding lesson", "lessons", "lesson", "trainer", "training", "instructor"] },
+  { key: "boarding", words: ["horse boarding", "boarding", "stables", "stable", "barn", "stall"] },
+];
+
+/** The service segment a free-text query is asking for, if any. */
+export function matchSegment(text: string | undefined | null): ServiceSegment | undefined {
+  if (!text) return undefined;
+  const t = text.toLowerCase();
+  for (const { key, words } of SEGMENT_SYNONYMS) {
+    if (words.some((w) => t.includes(w))) return segmentByKey(key);
+  }
+  return undefined;
+}
