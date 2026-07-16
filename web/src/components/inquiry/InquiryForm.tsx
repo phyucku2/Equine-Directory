@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { signIn } from "next-auth/react";
 
 import { track } from "@/lib/analytics/track";
 
@@ -23,6 +24,7 @@ export function InquiryForm({
 }) {
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
+  const [delivered, setDelivered] = useState(true);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -45,6 +47,7 @@ export function InquiryForm({
       setMessage(data.error ?? "Something went wrong. Please try again.");
       return;
     }
+    setDelivered(data.delivered !== false);
     setStatus("done");
     // GA4 recommended event — the primary paid-traffic conversion (imported
     // into Google Ads as the campaign optimization target).
@@ -52,12 +55,28 @@ export function InquiryForm({
   }
 
   if (status === "done") {
+    // callbackUrl returns the visitor to this listing after Google sign-in.
+    const callbackUrl = typeof window !== "undefined" ? window.location.href : "/account/inquiries";
     return (
       <div className="rounded-xl border border-pine/25 bg-pine/5 p-5 text-sm text-pine">
-        <p className="font-semibold">Inquiry sent ✓</p>
+        <p className="font-semibold">Message sent ✓</p>
         <p className="mt-1 text-ink/70">
-          We&apos;ve passed your message to {businessName}. They&apos;ll reply to your email.
+          {delivered
+            ? `We've passed your message to ${businessName}. They'll reply to your email.`
+            : `Your message is saved. ${businessName} hasn't claimed their page yet — we've invited them to join and reply, and we'll email you if they do.`}
         </p>
+        {!isSignedIn && (
+          <div className="mt-3 border-t border-pine/15 pt-3">
+            <p className="text-ink/70">Create a free account to track this message and get notified of replies.</p>
+            <button
+              type="button"
+              onClick={() => void signIn("google", { callbackUrl })}
+              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-pine px-4 py-2 font-medium text-cream transition hover:bg-pine-light"
+            >
+              Create a free account
+            </button>
+          </div>
+        )}
       </div>
     );
   }

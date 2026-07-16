@@ -25,6 +25,10 @@ export interface CreateInquiryResult {
     // (canReceiveLeads is BASIC+). The lead is always stored regardless.
     subscription: { tier: SubTier; status: string; trainerSeats: number } | null;
   };
+  /** True when a BusinessOwner exists — i.e. someone has claimed the listing.
+   *  Unclaimed listings are the target of the "claim to read your inquiry"
+   *  invite; already-claimed ones are not (they'd get an upgrade prompt instead). */
+  isClaimed: boolean;
 }
 
 /**
@@ -45,6 +49,7 @@ export async function createInquiry(
       name: true,
       email: true,
       subscription: { select: { tier: true, status: true, trainerSeats: true } },
+      _count: { select: { owners: true } },
     },
   });
   if (!business) return null;
@@ -62,7 +67,23 @@ export async function createInquiry(
     select: { id: true },
   });
 
-  return { inquiry, business };
+  const { _count, ...businessFields } = business;
+  return { inquiry, business: businessFields, isClaimed: _count.owners > 0 };
+}
+
+/**
+ * Attach a signed-in user's prior GUEST inquiries (userId null, same email) to
+ * their account, so leads they sent before signing in show up in
+ * /account/inquiries. Case-insensitive email match. Returns the count linked.
+ */
+export async function linkGuestInquiries(userId: string, email: string | null | undefined): Promise<number> {
+  const addr = email?.trim().toLowerCase();
+  if (!addr) return 0;
+  const res = await prisma.inquiry.updateMany({
+    where: { userId: null, email: { equals: addr, mode: "insensitive" } },
+    data: { userId },
+  });
+  return res.count;
 }
 
 export interface UserInquiry {

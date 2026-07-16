@@ -3,8 +3,13 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createInquiry } from "@/lib/db/inquiry";
 import { getEntitlements } from "@/lib/entitlements";
-import { sendOwnerInquiryAlert } from "@/lib/email";
+import { sendOwnerInquiryAlert, sendClaimInviteForInquiry } from "@/lib/email";
 import { checkRateLimit } from "@/lib/ratelimit";
+import { absoluteUrl } from "@/lib/urls";
+
+// Don't re-email an unclaimed barn about waiting inquiries more than once per
+// this window — a barn that gets several leads should get one nudge, not a burst.
+const CLAIM_INVITE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 // POST /api/businesses/[id]/inquiry — send a lead to a barn (M6 / §3).
 // Mirrors the claim route: guests are allowed; when signed in we auto-fill
@@ -76,20 +81,56 @@ export async function POST(
     });
   }
 
+  // Held lead on an UNCLAIMED barn that published an email: invite them to claim
+  // and read it (owner decision 2026-07-16). Deduped via a recent CLAIM_INVITE
+  // audit row so a barn with several leads gets one nudge, not a burst.
+  let invited = false;
+  if (!delivered && !result.isClaimed && result.business.email) {
+    const recent = await prisma.auditLog.findFirst({
+      where: {
+        entityId: result.business.id,
+        action: "CLAIM_INVITE_SENT",
+        createdAt: { gte: new Date(Date.now() - CLAIM_INVITE_COOLDOWN_MS) },
+      },
+      select: { id: true },
+    });
+    if (!recent) {
+      const waitingCount = await prisma.inquiry.count({ where: { businessId: result.business.id } });
+      await sendClaimInviteForInquiry(result.business.email, {
+        businessName: result.business.name,
+        claimUrl: absoluteUrl(`/business/${result.business.slug}/claim`),
+        waitingCount,
+      });
+      await prisma.auditLog.create({
+        data: {
+          action: "CLAIM_INVITE_SENT",
+          entityType: "Business",
+          entityId: result.business.id,
+          performedBy: "system:inquiry",
+          details: { inquiryId: result.inquiry.id, waitingCount },
+        },
+      });
+      invited = true;
+    }
+  }
+
   await prisma.auditLog.create({
     data: {
       action: "INQUIRY_CREATED",
       entityType: "Business",
       entityId: result.business.id,
       performedBy: userId ? email : `guest:${email}`,
-      details: { inquiryId: result.inquiry.id, userId, delivered },
+      details: { inquiryId: result.inquiry.id, userId, delivered, invited },
     },
   });
 
-  // The consumer's experience is identical either way — the barn is notified or
-  // will see the lead on claim; we never advertise that a barn is unclaimed.
+  // Report delivery honestly so the form can set the right expectation: a
+  // claimed barn replies by email; an unclaimed one has been invited to join.
   return NextResponse.json({
     ok: true,
-    message: "Your inquiry was sent. The barn will reply to your email.",
+    delivered,
+    message: delivered
+      ? "Your inquiry was sent. The stable will reply to your email."
+      : "Your message was saved. We've invited this stable to claim their page and reply — we'll email you if they respond.",
   });
 }
