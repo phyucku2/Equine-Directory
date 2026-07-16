@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { track } from "@/lib/analytics/track";
+
 // Consumer inquiry / lead form (M6 / §3), modeled on ClaimForm. Posts to
 // /api/businesses/[id]/inquiry. Guests submit name + email + message; signed-in
 // users get name/email pre-filled (and the route stamps their userId so the lead
@@ -44,6 +46,9 @@ export function InquiryForm({
       return;
     }
     setStatus("done");
+    // GA4 recommended event — the primary paid-traffic conversion (imported
+    // into Google Ads as the campaign optimization target).
+    track("generate_lead", { business_id: businessId });
   }
 
   if (status === "done") {
