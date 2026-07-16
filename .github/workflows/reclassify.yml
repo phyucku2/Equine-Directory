@@ -1,0 +1,125 @@
+name: Reclassify listings (type → true category)
+
+# Re-files mis-categorized crawl listings (see crawler/reclassify.py). The
+# gosom-scraped Google business type isn't stored in the DB, but every crawl
+# uploaded its raw results as a gmaps-results-<ST> artifact — this workflow
+# downloads them all, builds an external_id → type map, and joins it against
+# the pending queue. Feed stores → feed-forage, vets (with equine signal) →
+# equine-veterinarian, tack/saddlery → tack-shop, tour operators → the
+# trail-rides vertical, etc. Unmappable businesses stay in the human queue.
+#
+# Prerequisites: DATABASE_URL secret. Artifacts are read with the built-in
+# GITHUB_TOKEN (actions: read).
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "dry-run = preview only · apply = write re-filings"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      limit:
+        description: "Cap number of pending businesses (blank = all)"
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: reclassify
+  cancel-in-progress: false
+
+jobs:
+  reclassify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download crawl artifacts (raw gosom results)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          gh api "repos/${{ github.repository }}/actions/artifacts" --paginate \
+            -q '.artifacts[] | select(.name|startswith("gmaps-results-")) | select(.expired==false) | "\(.id) \(.name)"' \
+            | while read -r id name; do
+                echo "fetching $name ($id)"
+                gh api "repos/${{ github.repository }}/actions/artifacts/$id/zip" > "artifacts/$name-$id.zip" || continue
+                unzip -o -q "artifacts/$name-$id.zip" -d "artifacts/$name-$id/" || true
+                rm -f "artifacts/$name-$id.zip"
+              done
+          find artifacts -name '*.json' | wc -l
+
+      - name: Build external_id → type map
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json, pathlib
+          out = open("out/types.jsonl", "w", encoding="utf-8")
+          n = 0
+          for p in pathlib.Path("artifacts").rglob("*.json"):
+              text = p.read_text(encoding="utf-8", errors="replace").strip()
+              if not text:
+                  continue
+              try:
+                  rows = json.loads(text)
+                  if isinstance(rows, dict):
+                      rows = [rows]
+              except json.JSONDecodeError:
+                  rows = []
+                  for line in text.splitlines():
+                      line = line.strip()
+                      if line:
+                          try:
+                              rows.append(json.loads(line))
+                          except json.JSONDecodeError:
+                              pass
+              for r in rows:
+                  if not isinstance(r, dict):
+                      continue
+                  cid = str(r.get("cid") or r.get("data_id") or r.get("place_id") or "").strip()
+                  cats = r.get("categories") or ([r["category"]] if r.get("category") else [])
+                  typ = r.get("category") or (cats[0] if cats else None)
+                  if cid and typ:
+                      out.write(json.dumps({"external_id": f"google:{cid}", "type": typ}) + "\n")
+                      n += 1
+          out.close()
+          print(f"wrote {n} type rows")
+          PY
+
+      - name: Run reclassify
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IN_APPLY: ${{ inputs.apply }}
+          IN_LIMIT: ${{ inputs.limit }}
+        run: |
+          set -euo pipefail
+          args="--types-file out/types.jsonl"
+          [ "$IN_APPLY" = "apply" ] && args="$args --apply"
+          [ -n "$IN_LIMIT" ] && args="$args --limit $IN_LIMIT"
+          echo "Running: python reclassify.py $args"
+          python reclassify.py $args
+
+      - name: Upload decisions CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reclassify-decisions
+          path: crawler/out/reclassify-decisions.csv
+          if-no-files-found: warn
