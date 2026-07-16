@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth/guards";
-import { listUserInquiries } from "@/lib/db/inquiry";
+import { listUserInquiries, linkGuestInquiries } from "@/lib/db/inquiry";
 import { businessUrl } from "@/lib/urls";
 
 // /account/inquiries — leads the signed-in user has sent to barns (M6 / §3).
@@ -29,6 +29,9 @@ const dateFmt = new Intl.DateTimeFormat("en-US", {
 
 export default async function InquiriesPage() {
   const user = await requireUser();
+  // Adopt any guest inquiries this person sent before signing in (same email),
+  // so their earlier leads show up here too.
+  await linkGuestInquiries(user.id, user.email);
   const inquiries = await listUserInquiries(user.id);
 
   return (

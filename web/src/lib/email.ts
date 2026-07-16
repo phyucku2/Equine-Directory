@@ -100,6 +100,32 @@ export async function sendOwnerInquiryAlert(
   });
 }
 
+/**
+ * Invite an UNCLAIMED business to claim its listing because a lead is waiting.
+ * Sent to the business's own published email (crawled from its Google listing).
+ * Turns a held lead into a claim — the visitor was told we'd reach out, so this
+ * closes that loop too. Deduped by the caller (one invite per business per
+ * window) so a barn with several inquiries isn't emailed repeatedly.
+ */
+export async function sendClaimInviteForInquiry(
+  toBusinessEmail: string,
+  args: { businessName: string; claimUrl: string; waitingCount: number },
+): Promise<void> {
+  const n = args.waitingCount;
+  const inquiries = n === 1 ? "an inquiry" : `${n} inquiries`;
+  await send({
+    to: toBusinessEmail,
+    subject: `You have ${inquiries} waiting for ${args.businessName}`,
+    html: `
+      <p>Good news — someone reached out to <strong>${escapeHtml(args.businessName)}</strong> through The Stable Directory, where your barn is listed.</p>
+      <p>Claim your listing (it's free) to read ${n === 1 ? "their message" : "their messages"} and reply directly:</p>
+      <p><a href="${args.claimUrl}">Claim ${escapeHtml(args.businessName)} and read your ${n === 1 ? "inquiry" : "inquiries"}</a></p>
+      <p>Once claimed you can update your details, respond to reviews, and receive future inquiries by email.</p>
+      <p>If this isn't your business, you can ignore this email.</p>
+    `,
+  });
+}
+
 /** Send a saved-search digest of newly matching stables to a consumer. */
 export async function sendSavedSearchDigest(
   toEmail: string,
