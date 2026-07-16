@@ -9,7 +9,6 @@ import { getCategoryStateCombos, getCategoryCitiesInState } from "@/lib/db/inten
 import { categoryStateUrl, intentUrl, categoryUrl, stateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
-import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd, faqLd } from "@/lib/seo/jsonld";
 import { categoryCopy } from "@/lib/seo/copy";
@@ -52,23 +51,20 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   };
 }
 
-export default async function CategoryStatePage({
-  params,
-  searchParams,
-}: {
-  params: Promise<Params>;
-  searchParams: Promise<{ page?: string }>;
-}) {
+// No searchParams here: ?page= pagination is a request-time API, which this
+// Next version rejects inside an ISR (revalidate) route rendered on demand —
+// every fallback request 500'd. The canonical always pointed at page 1, so
+// query pagination bought no SEO; the city mesh + city pages carry the long
+// tail. (Same incident as the generateStaticParams note above.)
+export default async function CategoryStatePage({ params }: { params: Promise<Params> }) {
   const p = await params;
-  const pageParam = (await searchParams).page;
   if (!isPublicCategorySlug(p.category)) notFound();
   const { cat, state } = await load(p);
   if (!cat || !state) notFound();
 
-  const page = Math.max(1, Number(pageParam) || 1);
   const [results, cities] = await Promise.all([
-    getByCategoryAndLocation(p.category, state.id, page),
-    page === 1 ? getCategoryCitiesInState(p.category, p.state, 60) : Promise.resolve([]),
+    getByCategoryAndLocation(p.category, state.id, 1),
+    getCategoryCitiesInState(p.category, p.state, 60),
   ]);
 
   const self = categoryStateUrl(p.category, p.state);
@@ -144,7 +140,16 @@ export default async function CategoryStatePage({
               <BusinessCard key={b.id} business={b} />
             ))}
           </div>
-          <Pagination basePath={self} page={results.page} totalPages={results.totalPages} />
+          {results.totalPages > 1 && (
+            <p className="mt-6 text-sm text-ink/55">
+              Showing the first {results.items.length} of {results.total} — pick a city above to
+              see every listing, or{" "}
+              <Link href="/map" className="text-brass hover:underline">
+                browse the map
+              </Link>
+              .
+            </p>
+          )}
         </>
       )}
 
