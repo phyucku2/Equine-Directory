@@ -25,12 +25,10 @@ export const revalidate = 3600;
 type Params = { category: string; state: string };
 
 export async function generateStaticParams() {
-  try {
-    const combos = await getCategoryStateCombos(400);
-    return combos.filter((c) => isPublicCategorySlug(c.category));
-  } catch {
-    return [];
-  }
+  // Defer to on-demand ISR (same pattern as locations/[state]) — hundreds of
+  // DB-backed prerenders made deploys fail whenever Neon hiccuped under
+  // crawl-ingest load. See business/[slug]/page.tsx for the incident note.
+  return [];
 }
 
 async function load(p: Params) {
