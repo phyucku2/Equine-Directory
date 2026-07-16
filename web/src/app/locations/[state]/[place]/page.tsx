@@ -11,6 +11,8 @@ import { NearbyCityLinks } from "@/components/NearbyCityLinks";
 import { LocationStatStrip } from "@/components/LocationStatStrip";
 import { getActiveSpotlightsForArea } from "@/lib/db/spotlight";
 import { Pagination } from "@/components/Pagination";
+import { JsonLd } from "@/components/JsonLd";
+import { collectionLd } from "@/lib/seo/jsonld";
 import { robots, isHubIndexable } from "@/lib/seo/indexing";
 
 export const revalidate = 86400;
@@ -75,6 +77,16 @@ export default async function PlacePage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
+      {/* ItemList schema for the listings shown — location pages previously
+          shipped only Organization/WebSite + breadcrumbs, leaving the listing
+          content invisible to structured data (SEO handoff 2026-07-16, P2). */}
+      <JsonLd
+        data={collectionLd(
+          `Horse stables in ${resolved.loc.name}${stCode}`,
+          canonicalPath,
+          results.items,
+        )}
+      />
       <Breadcrumbs
         items={[
           { name: "Home", url: "/" },

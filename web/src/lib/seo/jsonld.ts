@@ -193,10 +193,18 @@ export function eventLd(event: PublicEvent) {
   if (event.description) ld.description = event.description;
   if (event.imageUrl) ld.image = event.imageUrl;
   if (event.location) {
+    // State from the location chain (city → county → state) — was hardcoded
+    // "FL" from the Florida-only V1; omit rather than guess when absent.
+    const region = event.location.parent?.parent?.code;
     ld.location = {
       "@type": "Place",
       name: event.location.name,
-      address: { "@type": "PostalAddress", addressLocality: event.location.name, addressRegion: "FL", addressCountry: "US" },
+      address: {
+        "@type": "PostalAddress",
+        addressLocality: event.location.name,
+        ...(region ? { addressRegion: region } : {}),
+        addressCountry: "US",
+      },
     };
   }
   if (event.price != null) {
