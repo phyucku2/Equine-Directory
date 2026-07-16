@@ -128,10 +128,20 @@ jobs:
       - name: Apply DB migrations
         working-directory: web
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          POOLED_URL: ${{ secrets.DATABASE_URL }}
         run: |
+          set -euo pipefail
+          # Migrations run on the DIRECT (non-pooled) endpoint and clear any
+          # leaked Prisma advisory lock first — Neon's pooler can keep a finished
+          # migrate's session alive holding pg_advisory_lock(72707369), which
+          # makes every later migrate fail with P1002. Same owner-approved
+          # mitigation as migrate.yml.
+          export DATABASE_URL="${POOLED_URL/-pooler/}"
           npm ci
           npx prisma generate
+          printf "%s\n" \
+            "SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype = 'advisory' AND objid = 72707369 AND pid <> pg_backend_pid();" \
+            | npx prisma db execute --stdin --url "$DATABASE_URL" || echo "(no stale lock holders)"
           npx prisma migrate deploy
 
       - name: Seed taxonomy (categories + US states/counties)

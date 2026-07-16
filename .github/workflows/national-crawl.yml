@@ -68,6 +68,12 @@ jobs:
           # "-pooler" to get the direct host.
           export DATABASE_URL="${POOLED_URL/-pooler/}"
           npm ci --no-audit --no-fund
+          # Clear a leaked Prisma migration advisory lock before deploying
+          # (owner-approved mitigation, same as migrate.yml) — targets ONLY
+          # holders of lock 72707369; app connections never hold it.
+          printf "%s\n" \
+            "SELECT pg_terminate_backend(pid) FROM pg_locks WHERE locktype = 'advisory' AND objid = 72707369 AND pid <> pg_backend_pid();" \
+            | npx prisma db execute --stdin --url "$DATABASE_URL" || echo "(no stale lock holders)"
           npx prisma migrate deploy
 
       - id: build
