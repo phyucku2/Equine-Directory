@@ -22,7 +22,7 @@ export const publicEventInclude = {
     select: {
       name: true,
       slug: true,
-      parent: { select: { slug: true, parent: { select: { slug: true } } } },
+      parent: { select: { slug: true, parent: { select: { slug: true, code: true } } } },
     },
   },
 } satisfies Prisma.EventInclude;

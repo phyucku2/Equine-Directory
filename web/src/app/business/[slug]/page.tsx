@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { getBusinessBySlug, getRelated } from "@/lib/db/business";
 import { businessUrl, categoryUrl, countyUrl, stateUrl, cityUrl, absoluteUrl } from "@/lib/urls";
-import { telHref, ensureHttp, displayHostname } from "@/lib/format";
+import { telHref, ensureHttp, displayHostname, showRating } from "@/lib/format";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { Gallery } from "@/components/business/Gallery";
@@ -100,10 +100,31 @@ export async function generateMetadata({
   const business = await getBusinessBySlug(slug);
   if (!business) return { title: "Listing not found" };
   const cat = business.categories[0]?.category.name;
-  const title = `${business.name} — ${cat ?? "Horse stable"} in ${business.location.name}, FL`;
+  // State from the same chain the LocalBusiness JSON-LD uses (city → county →
+  // state). This was hardcoded "FL" from the Florida-only V1 — GSC showed
+  // every out-of-state listing snippet naming the wrong state, and 29 page-1
+  // queries sitting at 0% CTR because of it (SEO handoff 2026-07-16, P0).
+  const stateLoc = business.location.parent?.parent;
+  const st = stateLoc?.code ?? stateLoc?.name;
+  const place = st ? `${business.location.name}, ${st}` : business.location.name;
+  const catLabel = cat ?? "Horse Stables";
+  // Rating in the title lifts CTR (P1); skip it when the title is already
+  // long so we stay near Google's ~60-char display cut.
+  const base = `${business.name} — ${catLabel} in ${place}`;
+  const rated = business.rating != null && showRating(business.reviewCount);
+  const title =
+    rated && base.length <= 52 ? `${base} (${Number(business.rating).toFixed(1)}★)` : base;
   const description =
     business.description?.slice(0, 160) ??
-    `${business.name} in ${business.location.name}, Florida.`;
+    [
+      rated
+        ? `${business.name} in ${place} — rated ${Number(business.rating).toFixed(1)}★ from ${business.reviewCount} ${business.reviewCount === 1 ? "review" : "reviews"}.`
+        : `${business.name} in ${place}.`,
+      business.phone ? `Call ${business.phone}.` : "",
+      `See contact info, location, and nearby ${catLabel.toLowerCase()}.`,
+    ]
+      .filter(Boolean)
+      .join(" ");
   return {
     title,
     description,
