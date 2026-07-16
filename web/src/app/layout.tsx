@@ -9,6 +9,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { organizationLd, websiteLd } from "@/lib/seo/jsonld";
 import { SITE } from "@/lib/site";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { AdSense } from "@/components/ads/AdSense";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -44,6 +45,7 @@ export default function RootLayout({
     >
       <body className="flex min-h-full flex-col font-sans text-ink">
         <GoogleAnalytics />
+        <AdSense />
         <JsonLd data={[organizationLd(), websiteLd()]} />
         <Providers>
           <Header />

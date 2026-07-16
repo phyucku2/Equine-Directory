@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { AdSlot } from "@/components/ads/AdSlot";
 import {
   getNationalStats,
   getStateCounts,
@@ -207,6 +208,9 @@ export default async function DataPage() {
           For custom cuts or press inquiries, use the contact options on the site.
         </p>
       </section>
+
+      {/* One ad unit per page, after all content (owner: tasteful, minimal). */}
+      <AdSlot />
     </div>
   );
 }
