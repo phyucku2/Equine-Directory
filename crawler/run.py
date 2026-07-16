@@ -16,8 +16,11 @@ import argparse
 import asyncio
 import os
 import sys
+import time
 import urllib.request
 from collections import Counter
+
+import psycopg
 
 # Windows consoles default stdout to the OS codepage (e.g. cp1252), not UTF-8 —
 # printing a real scraped business name with a curly apostrophe or an em dash
@@ -309,7 +312,20 @@ def main() -> None:
     args = parser.parse_args()
     if args.file:
         os.environ["GMAPS_FILE"] = args.file
-    asyncio.run(run(args.source, args.limit, args.use_llm))
+    # One retry on Postgres deadlock: concurrent state ingests (matrix jobs)
+    # can deadlock updating the same cross-border Business rows (PA/MN/KS all
+    # hit this in the 2026-07-16 adjacent-verticals run). The state's whole
+    # transaction rolls back and upserts are idempotent, so a clean redo is
+    # safe; the delay lets the other ingest finish its commit window.
+    for attempt in (1, 2):
+        try:
+            asyncio.run(run(args.source, args.limit, args.use_llm))
+            break
+        except psycopg.errors.DeadlockDetected:
+            if attempt == 2:
+                raise
+            print("Deadlock during ingest — full transaction rolled back; retrying once in 90s…", flush=True)
+            time.sleep(90)
 
 
 if __name__ == "__main__":
