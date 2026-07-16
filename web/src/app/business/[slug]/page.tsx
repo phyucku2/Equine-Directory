@@ -82,17 +82,13 @@ function ChipList({ facet, slugs }: { facet: FacetKey; slugs: string[] }) {
 }
 
 export async function generateStaticParams() {
-  try {
-    const businesses = await prisma.business.findMany({
-      where: { isPublished: true },
-      select: { slug: true },
-      take: 500,
-    });
-    return businesses.map((b) => ({ slug: b.slug }));
-  } catch {
-    // DB unreachable at build time — fall back to on-demand ISR.
-    return [];
-  }
+  // Defer to on-demand ISR (same pattern as locations/[state]): prerendering
+  // 500 DB-backed pages gives the build 500 chances to die on a transient
+  // Neon blip — which is exactly what happened while the national crawl was
+  // ingesting (2026-07-16: every deploy failed with
+  // PrismaClientInitializationError mid-prerender). First runtime request
+  // renders + caches each page, where a retry is just the next request.
+  return [];
 }
 
 export async function generateMetadata({
