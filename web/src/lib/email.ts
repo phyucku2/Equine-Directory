@@ -74,6 +74,24 @@ export async function sendClaimVerification(
   return { sent: true, url: verifyUrl };
 }
 
+/**
+ * Passwordless sign-in ("magic link") email, sent by the Auth.js Resend
+ * provider's sendVerificationRequest (see src/auth.ts). Clicking the link
+ * proves the recipient controls the address — the same email-ownership proof
+ * Google gives — so it's safe to resolve identity by email.
+ */
+export async function sendLoginLink(to: string, url: string): Promise<void> {
+  await send({
+    to,
+    subject: "Your sign-in link for The Stable Directory",
+    html: `
+      <p>Click below to sign in to The Stable Directory. The link is valid for 24 hours and can be used once.</p>
+      <p><a href="${url}">Sign in to The Stable Directory</a></p>
+      <p>If you didn't request this, you can safely ignore this email — no account is created until the link is used.</p>
+    `,
+  });
+}
+
 /** Notify a barn owner that a new inquiry (lead) arrived. */
 export async function sendOwnerInquiryAlert(
   toBusinessEmail: string,

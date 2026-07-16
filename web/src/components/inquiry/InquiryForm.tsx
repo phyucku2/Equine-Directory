@@ -25,18 +25,21 @@ export function InquiryForm({
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
   const [message, setMessage] = useState("");
   const [delivered, setDelivered] = useState(true);
+  const [sentEmail, setSentEmail] = useState("");
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("submitting");
     setMessage("");
     const form = new FormData(e.currentTarget);
+    const submittedEmail = String(form.get("email") ?? "").trim();
+    setSentEmail(submittedEmail);
     const res = await fetch(`/api/businesses/${businessId}/inquiry`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: form.get("name"),
-        email: form.get("email"),
+        email: submittedEmail,
         phone: form.get("phone"),
         message: form.get("message"),
       }),
@@ -68,13 +71,26 @@ export function InquiryForm({
         {!isSignedIn && (
           <div className="mt-3 border-t border-pine/15 pt-3">
             <p className="text-ink/70">Create a free account to track this message and get notified of replies.</p>
-            <button
-              type="button"
-              onClick={() => void signIn("google", { callbackUrl })}
-              className="mt-2 inline-flex items-center gap-2 rounded-lg bg-pine px-4 py-2 font-medium text-cream transition hover:bg-pine-light"
-            >
-              Create a free account
-            </button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {/* We already have their email from the inquiry — a magic link
+                  turns it into an account with no password and no Google. */}
+              {sentEmail && (
+                <button
+                  type="button"
+                  onClick={() => void signIn("resend", { email: sentEmail, callbackUrl })}
+                  className="inline-flex items-center gap-2 rounded-lg bg-pine px-4 py-2 font-medium text-cream transition hover:bg-pine-light"
+                >
+                  Email me a sign-in link
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void signIn("google", { callbackUrl })}
+                className="inline-flex items-center gap-2 rounded-lg border border-pine/30 px-4 py-2 font-medium text-pine transition hover:border-brass hover:text-brass"
+              >
+                Continue with Google
+              </button>
+            </div>
           </div>
         )}
       </div>
