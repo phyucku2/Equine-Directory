@@ -42,11 +42,16 @@ const adminEmails = (process.env.ADMIN_EMAILS ?? "")
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
-// Magic-link provider is added only when Resend is configured, so local dev and
-// preview builds without RESEND_API_KEY keep working (Google-only there).
+// Magic-link is OPT-IN behind AUTH_ENABLE_MAGIC_LINK=1 (in addition to needing
+// RESEND_API_KEY). This is deliberate: in production RESEND_API_KEY is set (for
+// transactional email), so gating on it alone silently turned the email
+// provider on in prod-only — and it took down ALL sign-in with an Auth.js
+// "Configuration" 500 (preview builds have no RESEND_API_KEY, so they passed
+// and hid it). Keeping it flag-gated means prod stays Google-only until the
+// magic-link path is verified end-to-end in a preview with the key present.
 const emailFrom = process.env.EMAIL_FROM ?? "The Stable Directory <noreply@thestabledirectory.com>";
 const providers: Provider[] = [Google];
-if (process.env.RESEND_API_KEY) {
+if (process.env.RESEND_API_KEY && process.env.AUTH_ENABLE_MAGIC_LINK === "1") {
   providers.push(
     Resend({
       apiKey: process.env.RESEND_API_KEY,
