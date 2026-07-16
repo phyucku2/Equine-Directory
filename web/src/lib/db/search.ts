@@ -5,6 +5,7 @@ import {
   PUBLIC_CATEGORY_SOME,
   PUBLIC_CATEGORY_SLUGS,
   NOT_NON_BARN_NAME,
+  NON_BARN_NAME_KEYWORDS,
   type BusinessCard,
   type Paginated,
 } from "@/lib/db/business";
@@ -220,4 +221,63 @@ export async function searchBusinesses(p: SearchParams): Promise<Paginated<Busin
     pageSize: PAGE_SIZE,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
   };
+}
+
+// Same honesty cap as the homepage "near you" rails (src/lib/db/nearby.ts):
+// a visitor in one metro shouldn't be shown a barn 300 miles away just because
+// it's the nearest match.
+const GEO_MAX_KM = 250;
+
+// Proximity search for the "near me" intent (see src/lib/geo-intent.ts). Orders
+// the public catalog by great-circle distance from the visitor, optionally
+// narrowed to a set of category slugs (resolved from the query, e.g. "farrier
+// near me" → ["farrier"]) and/or a residual keyword. Mirrors getNearbyStables'
+// haversine SQL but spans the whole catalog rather than boarding only.
+export async function geoSearchBusinesses(
+  lat: number,
+  lng: number,
+  opts: { categorySlugs?: string[]; q?: string; take?: number } = {},
+): Promise<BusinessCard[]> {
+  const take = opts.take ?? 48;
+  const patterns = NON_BARN_NAME_KEYWORDS.map((kw) => `%${kw}%`);
+  const slugs = opts.categorySlugs?.length ? opts.categorySlugs : PUBLIC_CATEGORY_SLUGS;
+  const keyword = opts.q?.trim();
+  const keywordSql = keyword
+    ? Prisma.sql`AND (
+        to_tsvector('english', b."name" || ' ' || coalesce(b."description", '')) @@ plainto_tsquery('english', ${keyword})
+        OR b."name" % ${keyword}
+      )`
+    : Prisma.empty;
+
+  const rows = await prisma.$queryRaw<{ id: string; distance_km: number }[]>`
+    SELECT b."id",
+      6371 * acos(LEAST(1, GREATEST(-1,
+        cos(radians(${lat})) * cos(radians(b."latitude")) *
+          cos(radians(b."longitude") - radians(${lng}))
+        + sin(radians(${lat})) * sin(radians(b."latitude"))
+      ))) AS distance_km
+    FROM "Business" b
+    WHERE b."isPublished" = true
+      AND b."latitude" IS NOT NULL AND b."longitude" IS NOT NULL
+      AND b."name" NOT ILIKE ALL(${patterns}::text[])
+      AND EXISTS (
+        SELECT 1 FROM "BusinessCategory" bc
+        JOIN "Category" c ON c."id" = bc."categoryId"
+        WHERE bc."businessId" = b."id"
+          AND bc."reviewStatus" IN ('AUTO_APPROVED','APPROVED')
+          AND c."slug" IN (${Prisma.join(slugs)})
+      )
+      ${keywordSql}
+    ORDER BY distance_km ASC
+    LIMIT ${take}
+  `;
+
+  const near = rows.filter((r) => r.distance_km <= GEO_MAX_KM);
+  if (near.length === 0) return [];
+  const order = new Map(near.map((r, i) => [r.id, i]));
+  const cards = await prisma.business.findMany({
+    where: { id: { in: near.map((r) => r.id) } },
+    include: businessCardInclude,
+  });
+  return cards.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
