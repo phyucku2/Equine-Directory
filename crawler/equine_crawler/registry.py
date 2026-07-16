@@ -166,6 +166,7 @@ ADJACENT_QUERY_SPECS: list[tuple[str, str]] = [
     ("riding lessons", "trainer-instructor"),
     ("horse farrier", "farrier"),
     ("equine veterinarian", "equine-veterinarian"),
+    ("horse breeder", "breeding-facilities"),
     ("tack shop", "tack-shop"),
     ("horse feed store", "feed-forage"),
     ("horse trailer dealer", "trailer-sales-rental-repair"),

@@ -40,6 +40,7 @@ from equine_crawler.pipeline.normalize import normalize, slugify
 from equine_crawler.pipeline.upsert import load_category_ids, upsert_listing
 from equine_crawler.registry import get_source
 from equine_crawler.schemas import Grade, GradedCategory, NormalizedListing
+from equine_crawler.vertical_map import target_for
 
 
 # Google Places primaryType values that are clearly NOT boarding barns. Places
@@ -184,31 +185,75 @@ async def run(source_key: str, limit: int | None, use_llm: bool | None) -> None:
                 lng = n.longitude if n.longitude is not None else clng
 
                 if source.kind in ("places", "gmaps"):
-                    # Google returned this for a category-targeted search. Auto-
-                    # publish genuine facilities, but route clear non-barns (parks,
-                    # schools, hotels, stores, …) to moderation instead of the map.
-                    nonbarn = (
-                        _is_nonbarn_text(n.primary_type, n.name)
-                        if source.kind == "gmaps"
-                        else _is_nonbarn(n.primary_type)
-                    )
-                    grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
-                    if nonbarn:
+                    # gmaps rows carry the gosom-scraped Google business type.
+                    # Map it to its true vertical first (shared vertical_map —
+                    # the same rules the reclassify pass uses) so a feed store
+                    # surfaced by a boarding phrase, or an equine hospital
+                    # surfaced by the vet phrase, publishes under the right
+                    # category at ingest instead of waiting for a re-file pass.
+                    # Only TYPE-anchored matches confirm here (name-only rules
+                    # stay a reclassify/human tool — too fuzzy to auto-publish:
+                    # "Saddle Creek Stables" is a barn, not a tack shop).
+                    mapped = None
+                    if source.kind == "gmaps" and n.primary_type:
+                        cand, map_reason = target_for(
+                            n.name, n.description or "", n.primary_type.lower()
+                        )
+                        if cand and map_reason.startswith(("type:", "venue:")):
+                            mapped = cand
+                    if mapped:
+                        graded = [
+                            GradedCategory(
+                                category_slug=mapped,
+                                grade=Grade.CONFIRMED,
+                                confidence=0.9,
+                                is_primary=True,
+                            )
+                        ]
+                    elif source.kind == "places" or "horse-boarding" in n.candidate_categories:
+                        # Google returned this for a category-targeted search. Auto-
+                        # publish genuine facilities, but route clear non-barns (parks,
+                        # schools, hotels, stores, …) to moderation instead of the map.
+                        nonbarn = (
+                            _is_nonbarn_text(n.primary_type, n.name)
+                            if source.kind == "gmaps"
+                            else _is_nonbarn(n.primary_type)
+                        )
+                        grade = Grade.UNSURE if nonbarn else Grade.CONFIRMED
+                        if nonbarn:
+                            t = n.primary_type or "unknown"
+                            review_types[t] += 1
+                            ex = review_examples.setdefault(t, [])
+                            if len(ex) < 3:
+                                ex.append(n.name)
+                            print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
+                        graded = [
+                            GradedCategory(
+                                category_slug=c,
+                                grade=grade,
+                                confidence=0.4 if nonbarn else 0.9,
+                                is_primary=(i == 0),
+                            )
+                            for i, c in enumerate(n.candidate_categories)
+                        ]
+                    else:
+                        # Adjacent-vertical sweep (vets/farriers/trainers/…) whose
+                        # scraped type did NOT confirm the searched category —
+                        # queue under it for review rather than auto-publishing.
                         t = n.primary_type or "unknown"
                         review_types[t] += 1
                         ex = review_examples.setdefault(t, [])
                         if len(ex) < 3:
                             ex.append(n.name)
-                        print(f"  review (non-barn type '{n.primary_type}'): {n.name}", flush=True)
-                    graded = [
-                        GradedCategory(
-                            category_slug=c,
-                            grade=grade,
-                            confidence=0.4 if nonbarn else 0.9,
-                            is_primary=(i == 0),
-                        )
-                        for i, c in enumerate(n.candidate_categories)
-                    ]
+                        graded = [
+                            GradedCategory(
+                                category_slug=c,
+                                grade=Grade.UNSURE,
+                                confidence=0.4,
+                                is_primary=(i == 0),
+                            )
+                            for i, c in enumerate(n.candidate_categories)
+                        ]
                 else:
                     graded = grade_listing(n.candidate_categories, n.name, n.description or "", use_llm=use_llm)
                 slug = slugify(n.name, n.city or "")

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Generate a gosom (google-maps-scraper) queries.txt for the boarding crawl.
 
-Each line is "<phrase> <County> <ST> #!#<County>|<ST>" — the part after #!# is a
-gosom custom id that comes back on every result row (input_id), so the ingest
-(run.py --source gmaps-file) can place each barn under the right county/state.
+Each line is "<phrase> <County> <ST> #!#<County>|<ST>|<category-slug>" — the
+part after #!# is a gosom custom id that comes back on every result row
+(input_id), so the ingest (run.py --source gmaps-file) can place each barn
+under the right county/state AND file it under the category the phrase was
+searching for (vet phrases claim equine-veterinarian, not horse-boarding).
+The ingest also accepts the older two-part County|ST tag (legacy artifacts).
 
 Usage:
   python gen_gmaps_queries.py                  # all 48 states, boarding phrases
   python gen_gmaps_queries.py --state TX CA    # only these states
   python gen_gmaps_queries.py --dense          # only dense counties (from dense_counties.csv)
+  python gen_gmaps_queries.py --only-adjacent --categories equine-veterinarian farrier
   python gen_gmaps_queries.py --out queries.txt
 """
 
@@ -53,6 +57,12 @@ def main() -> None:
         help="ONLY the adjacent verticals (skip boarding phrases) — for a targeted "
         "top-up run after boarding is already crawled",
     )
+    ap.add_argument(
+        "--categories",
+        nargs="*",
+        help="restrict to phrases targeting these category slugs "
+        "(e.g. --only-adjacent --categories equine-veterinarian farrier)",
+    )
     ap.add_argument("--out", default=None, help="output file (default: stdout)")
     args = ap.parse_args()
 
@@ -69,18 +79,25 @@ def main() -> None:
         specs = list(ADJACENT_QUERY_SPECS)
     elif args.adjacent:
         specs = specs + list(ADJACENT_QUERY_SPECS)
-    phrases = list(dict.fromkeys(p for p, _ in specs))
+    if args.categories:
+        wanted = set(args.categories)
+        known = {slug for _, slug in specs}
+        if unknown := wanted - known:
+            raise SystemExit(f"--categories has no matching phrases: {sorted(unknown)}")
+        specs = [(p, s) for p, s in specs if s in wanted]
+    # Dedup by phrase, keeping each phrase's first slug pairing.
+    pairs = list({p: (p, s) for p, s in reversed(specs)}.values())[::-1]
 
     lines: list[str] = []
     for area in areas:
         county, _, st = area.rpartition(" ")
-        for phrase in phrases:
-            lines.append(f"{phrase} {area} #!#{county}|{st}")
+        for phrase, slug in pairs:
+            lines.append(f"{phrase} {area} #!#{county}|{st}|{slug}")
 
     text = "\n".join(lines) + "\n"
     if args.out:
         Path(args.out).write_text(text)
-        print(f"wrote {len(lines)} queries ({len(areas)} areas x {len(phrases)} phrases) to {args.out}")
+        print(f"wrote {len(lines)} queries ({len(areas)} areas x {len(pairs)} phrases) to {args.out}")
     else:
         print(text, end="")
 

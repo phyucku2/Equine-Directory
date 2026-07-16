@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 import urllib.request
 from pathlib import Path
@@ -358,13 +359,21 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
         if key in by_id:
             continue
 
-        # County|ST from the embedded custom id (falls back to None -> geocoder
-        # then tries state-less seeded-city match).
-        county = state = None
+        # County|ST[|category-slug] from the embedded custom id (falls back to
+        # None -> geocoder then tries state-less seeded-city match). The third
+        # part (newer query files) is the category the phrase searched for, so
+        # vet/farrier/trainer sweeps claim their own vertical instead of the
+        # source default (horse-boarding).
+        county = state = tag_slug = None
         tag = r.get("input_id") or r.get("id") or ""
         if isinstance(tag, str) and "|" in tag:
-            c, _, s = tag.rpartition("|")
-            county, state = (c.strip() or None), (s.strip().upper() or None)
+            parts = [p.strip() for p in tag.split("|")]
+            if len(parts) >= 3 and re.fullmatch(r"[a-z0-9-]+", parts[-1]):
+                tag_slug = parts[-1]
+                county, state = ("|".join(parts[:-2]) or None), (parts[-2].upper() or None)
+            else:
+                c, _, s = tag.rpartition("|")
+                county, state = (c.strip() or None), (s.strip().upper() or None)
 
         lat = _to_float(r.get("latitude"))
         lng = _to_float(r.get("longitude") if r.get("longitude") is not None else r.get("longtitude"))
@@ -394,7 +403,7 @@ def _load_gmaps_file(source: Source, limit: int | None) -> list[RawListing]:
             description=r.get("description") or None,
             latitude=lat,
             longitude=lng,
-            candidate_categories=list(source.candidate_categories),
+            candidate_categories=[tag_slug] if tag_slug else list(source.candidate_categories),
             source_url=r.get("link"),
             external_id=ext,
             primary_type=(r.get("category") or (cats[0] if cats else None)),

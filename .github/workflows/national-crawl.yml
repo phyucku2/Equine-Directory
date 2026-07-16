@@ -23,6 +23,10 @@ on:
         description: "Space/comma-separated 2-letter states, or 'all' (priority-ordered 47)"
         type: string
         default: "all"
+      verticals:
+        description: "Category slugs to sweep (space/comma-separated) — blank/'boarding' = the boarding phrases; anything else selects matching ADJACENT_QUERY_SPECS phrases (e.g. 'equine-veterinarian farrier trainer-instructor breeding-facilities')"
+        type: string
+        default: "boarding"
       depth:
         description: "gosom depth per query (higher = deeper scroll, more results, slower)"
         type: string
@@ -119,9 +123,19 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Generate Google-Maps queries for ${{ matrix.state }}
+        env:
+          IN_VERTICALS: ${{ inputs.verticals }}
         run: |
           set -euo pipefail
-          python gen_gmaps_queries.py --state "${{ matrix.state }}" --out "queries-${{ matrix.state }}.txt"
+          V=$(echo "${IN_VERTICALS:-boarding}" | tr ',' ' ' | xargs)
+          if [ -z "$V" ] || [ "$V" = "boarding" ]; then
+            python gen_gmaps_queries.py --state "${{ matrix.state }}" --out "queries-${{ matrix.state }}.txt"
+          else
+            # Slugs are validated against ADJACENT_QUERY_SPECS by the generator
+            # (unknown slug = hard fail, so a typo can't silently crawl nothing).
+            python gen_gmaps_queries.py --state "${{ matrix.state }}" \
+              --only-adjacent --categories $V --out "queries-${{ matrix.state }}.txt"
+          fi
           echo "Query lines: $(wc -l < queries-${{ matrix.state }}.txt)"
           mkdir -p out
 
@@ -164,6 +178,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: gmaps-results-${{ matrix.state }}
+          # Adjacent-vertical sweeps get their own artifact name so they never
+          # collide with the boarding rebuild's artifacts (the reclassify
+          # workflow matches the shared "gmaps-results-" prefix either way).
+          name: gmaps-results-${{ matrix.state }}${{ (inputs.verticals != '' && inputs.verticals != 'boarding') && '-adjacent' || '' }}
           path: crawler/out/results-${{ matrix.state }}.json
           if-no-files-found: warn
