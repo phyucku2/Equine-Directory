@@ -9,7 +9,6 @@ import { intentUrl, categoryUrl, categoryStateUrl, cityUrl, countyUrl, stateUrl,
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
 import { NearbyCityLinks } from "@/components/NearbyCityLinks";
-import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd } from "@/lib/seo/jsonld";
 import { categoryCopy } from "@/lib/seo/copy";
@@ -53,22 +52,17 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   };
 }
 
-export default async function IntentPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<Params>;
-  searchParams: Promise<{ page?: string }>;
-}) {
+// No searchParams here: ?page= pagination is a request-time API, which this
+// Next version rejects inside an ISR (revalidate) route rendered on demand —
+// see [category]/[state]/page.tsx for the incident note.
+export default async function IntentPage({ params }: { params: Promise<Params> }) {
   const p = await params;
-  const { pageParam } = { pageParam: (await searchParams).page };
   // Only public catalog category hubs are browsable.
   if (!isPublicCategorySlug(p.category)) notFound();
   const { cat, loc } = await load(p);
   if (!cat || !loc) notFound();
 
-  const page = Math.max(1, Number(pageParam) || 1);
-  const results = await getByCategoryAndLocation(p.category, loc.id, page);
+  const results = await getByCategoryAndLocation(p.category, loc.id, 1);
 
   const county = loc.parent;
   const state = county?.parent;
@@ -125,7 +119,15 @@ export default async function IntentPage({
               <BusinessCard key={b.id} business={b} />
             ))}
           </div>
-          <Pagination basePath={self} page={results.page} totalPages={results.totalPages} />
+          {results.totalPages > 1 && (
+            <p className="mt-6 text-sm text-ink/55">
+              Showing the first {results.items.length} of {results.total} —{" "}
+              <Link href="/map" className="text-brass hover:underline">
+                browse the map
+              </Link>{" "}
+              for every listing.
+            </p>
+          )}
           <div className="mt-10 flex flex-wrap gap-3 text-sm">
             {state && (
               <Link href={categoryStateUrl(p.category, p.state)} className="text-brass hover:underline">
