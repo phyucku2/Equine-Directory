@@ -97,6 +97,12 @@ async function main() {
   }
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://thestabledirectory.com";
 
+  // Where owner replies land. We send from the branded domain but set Reply-To
+  // to a real monitored inbox (e.g. a Gmail) so replies aren't lost — the send
+  // domain has inbound receiving disabled, so a reply to the From address would
+  // otherwise bounce. Optional: unset → no Reply-To header (replies bounce).
+  const replyTo = process.env.CAMPAIGN_REPLY_TO?.trim() || undefined;
+
   let resend: Resend | null = null;
   let postalAddress = "";
   if (args.apply) {
@@ -160,7 +166,8 @@ async function main() {
 
   console.log(
     `${args.apply ? "APPLY" : "DRY RUN"} · ${targets.length} barns to email ` +
-      `(limit ${args.limit}, cooldown ${COOLDOWN_DAYS}d, delay ${args.delayMs}ms)\n`,
+      `(limit ${args.limit}, cooldown ${COOLDOWN_DAYS}d, delay ${args.delayMs}ms)` +
+      `\nReply-To: ${replyTo ?? "(none — replies will bounce; set CAMPAIGN_REPLY_TO)"}\n`,
   );
 
   let sent = 0;
@@ -178,6 +185,7 @@ async function main() {
       await resend!.emails.send({
         from: process.env.EMAIL_FROM!,
         to: email,
+        ...(replyTo ? { replyTo } : {}),
         subject: `Claim your free listing for ${b.name}`,
         html: campaignHtml({ businessName: b.name, claimUrl, unsub, postalAddress }),
         headers: {
