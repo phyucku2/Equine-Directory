@@ -91,8 +91,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  if (!process.env.UNSUBSCRIBE_SECRET && !process.env.AUTH_SECRET) {
-    console.error("UNSUBSCRIBE_SECRET (or AUTH_SECRET) is required (signs unsubscribe links).");
+  // Signing secret is only needed to bake working unsubscribe links into real
+  // sends — a dry run mails nothing, so it can run with no secrets at all (handy
+  // for just counting recipients before any of the send config is in place).
+  if (args.apply && !process.env.UNSUBSCRIBE_SECRET && !process.env.AUTH_SECRET) {
+    console.error("--apply requires UNSUBSCRIBE_SECRET (or AUTH_SECRET) to sign unsubscribe links.");
     process.exit(1);
   }
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://thestabledirectory.com";
@@ -173,14 +176,14 @@ async function main() {
   let sent = 0;
   for (const b of targets) {
     const email = b.email!.trim();
-    const claimUrl = `${baseUrl.replace(/\/$/, "")}/business/${b.slug}/claim`;
-    const unsub = unsubscribeUrl(baseUrl, email);
 
     if (!args.apply) {
       console.log(`  would email ${email}  ←  ${b.name}`);
       continue;
     }
 
+    const claimUrl = `${baseUrl.replace(/\/$/, "")}/business/${b.slug}/claim`;
+    const unsub = unsubscribeUrl(baseUrl, email);
     try {
       await resend!.emails.send({
         from: process.env.EMAIL_FROM!,
