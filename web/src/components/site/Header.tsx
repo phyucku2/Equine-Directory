@@ -18,9 +18,6 @@ export function Header() {
           <Link href="/map" className="hover:text-brass">
             Map
           </Link>
-          <Link href="/locations/florida" className="hover:text-brass">
-            Florida
-          </Link>
           <Link href="/search" className="hover:text-brass">
             Search
           </Link>

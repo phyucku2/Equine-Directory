@@ -68,6 +68,14 @@ export const NON_BARN_NAME_KEYWORDS = [
   "u pick",
   "sunflower field",
   "petting",
+  // Places of worship and equipment dealers/rentals that picked up a stray
+  // horse-boarding claim during the crawl (owner request 2026-07-17). These are
+  // substring matches, so "church" also screens rarer names like "Churchill" —
+  // an accepted, reversible tradeoff: a boarding barn with "church"/"equipment"
+  // in its name is vanishingly rare, and any false hit is easily re-added by
+  // dropping the keyword. Tighten to a word-boundary match if one ever surfaces.
+  "church",
+  "equipment",
 ] as const;
 
 // Top-level NOT with an array is a NOR: a business matches only when its name
