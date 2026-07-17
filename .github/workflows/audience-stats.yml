@@ -1,0 +1,68 @@
+name: Reachability audit (how can we contact our barns?)
+
+# Counts contact channels across the Business table — phone vs email vs website —
+# to size a phone/SMS/voice (e.g. GHL) outreach before committing to it. Email
+# enrichment proved email is a dead channel (~6 sites DB-wide); this measures the
+# phone audience we can actually reach. Optionally exports a CSV of the reachable,
+# unclaimed barns (name, phone, city, claim URL) as a downloadable artifact for
+# import into an outreach tool.
+#
+# Prerequisite: DATABASE_URL secret. Read-only.
+
+on:
+  workflow_dispatch:
+    inputs:
+      export:
+        description: "csv = also produce a downloadable CSV of unclaimed-with-phone barns"
+        type: choice
+        options: [counts-only, csv]
+        default: counts-only
+      published_only:
+        description: "restrict the CSV export to published (live) listings"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audience-stats
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run reachability audit
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IN_EXPORT: ${{ inputs.export }}
+          IN_PUBLISHED_ONLY: ${{ inputs.published_only }}
+        run: |
+          set -euo pipefail
+          args=""
+          [ "$IN_EXPORT" = "csv" ] && args="--export audience.csv"
+          [ "$IN_PUBLISHED_ONLY" = "true" ] && args="$args --published-only"
+          echo "Running: python audience_stats.py $args"
+          python audience_stats.py $args
+
+      - name: Upload audience CSV
+        if: ${{ inputs.export == 'csv' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: audience-csv
+          path: crawler/audience.csv
+          if-no-files-found: warn
