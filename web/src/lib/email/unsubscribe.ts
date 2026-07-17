@@ -6,9 +6,13 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 // and the link can't be forged to opt out someone else. Shared by the batch
 // sender (relative import) and the /api/email/unsubscribe route (@/ import).
 
+// Dedicated signing key for unsubscribe links. Prefer UNSUBSCRIBE_SECRET (set
+// identically in Vercel + GitHub Actions) so the key can live in both places
+// without ever reading Vercel's hidden AUTH_SECRET back, and so rotating it
+// never invalidates user sessions. Falls back to AUTH_SECRET when unset.
 function secret(): string {
-  const s = process.env.AUTH_SECRET;
-  if (!s) throw new Error("AUTH_SECRET is required to sign unsubscribe links");
+  const s = process.env.UNSUBSCRIBE_SECRET ?? process.env.AUTH_SECRET;
+  if (!s) throw new Error("UNSUBSCRIBE_SECRET (or AUTH_SECRET) is required to sign unsubscribe links");
   return s;
 }
 

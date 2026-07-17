@@ -16,8 +16,9 @@
  *   - Throttled (per-send delay + per-run --limit) so sender reputation warms up
  *     instead of getting the domain blocklisted.
  *
- * Env: DATABASE_URL, AUTH_SECRET (signs unsubscribe links). For --apply also:
- *   RESEND_API_KEY, EMAIL_FROM, NEXT_PUBLIC_BASE_URL, CAMPAIGN_POSTAL_ADDRESS.
+ * Env: DATABASE_URL, UNSUBSCRIBE_SECRET (signs unsubscribe links; falls back to
+ *   AUTH_SECRET). For --apply also: RESEND_API_KEY, EMAIL_FROM,
+ *   NEXT_PUBLIC_BASE_URL, CAMPAIGN_POSTAL_ADDRESS.
  *
  * Usage (web/ folder):
  *   npx tsx scripts/send-claim-campaign.ts --limit 100            # preview
@@ -90,8 +91,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function main() {
   const args = parseArgs(process.argv.slice(2));
 
-  if (!process.env.AUTH_SECRET) {
-    console.error("AUTH_SECRET is required (signs unsubscribe links).");
+  if (!process.env.UNSUBSCRIBE_SECRET && !process.env.AUTH_SECRET) {
+    console.error("UNSUBSCRIBE_SECRET (or AUTH_SECRET) is required (signs unsubscribe links).");
     process.exit(1);
   }
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "https://thestabledirectory.com";

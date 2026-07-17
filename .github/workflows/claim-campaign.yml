@@ -6,7 +6,10 @@ name: Claim-listing campaign (email unclaimed barns)
 # limit (a few hundred/day) and grow it as the sending domain's reputation holds.
 #
 # Prerequisites (repo secrets/vars):
-#   DATABASE_URL, AUTH_SECRET            — always (AUTH_SECRET signs unsub links)
+#   DATABASE_URL                         — always
+#   UNSUBSCRIBE_SECRET                   — always; signs unsub links. Set the SAME
+#                                          value in Vercel so the site can verify
+#                                          them. (Falls back to AUTH_SECRET.)
 #   RESEND_API_KEY, EMAIL_FROM           — required to send (apply)
 #   CAMPAIGN_POSTAL_ADDRESS              — required to send (CAN-SPAM postal line)
 #   NEXT_PUBLIC_BASE_URL                 — site origin for claim/unsub links
@@ -61,6 +64,7 @@ jobs:
       - name: Send claim campaign
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
           AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
