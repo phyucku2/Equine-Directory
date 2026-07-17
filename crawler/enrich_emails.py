@@ -147,23 +147,37 @@ def main() -> None:
     ap.add_argument("--apply", action="store_true", help="write found emails (default: dry run)")
     ap.add_argument("--limit", type=int, default=2000, help="max businesses to check")
     ap.add_argument("--workers", type=int, default=8, help="concurrent fetches")
+    ap.add_argument("--include-unpublished", action="store_true",
+                    help="also scrape barns not yet published (whole DB ceiling, not just live listings)")
     args = ap.parse_args()
 
+    # Published-only is the safe default (we only email/keep addresses for live
+    # listings). --include-unpublished widens to the whole table to measure the
+    # true email ceiling — how many barns anywhere have a scrapeable website.
+    conds = ["website IS NOT NULL AND website <> ''", "(email IS NULL OR email = '')"]
+    if not args.include_unpublished:
+        conds.insert(0, '"isPublished" = true')
+    where = "WHERE " + " AND ".join(conds)
+    scope = "all barns" if args.include_unpublished else "published"
+
     with connect() as conn, conn.cursor() as cur:
+        # Unbounded ceiling first, so we see the true candidate total even when
+        # --limit caps how many we actually scrape this run.
+        cur.execute(f'SELECT count(*) FROM "Business" {where}')
+        total_candidates = cur.fetchone()[0]
         cur.execute(
-            """
+            f"""
             SELECT id, name, website
             FROM "Business"
-            WHERE "isPublished" = true
-              AND website IS NOT NULL AND website <> ''
-              AND (email IS NULL OR email = '')
+            {where}
             ORDER BY "reviewCount" DESC NULLS LAST
             LIMIT %s
             """,
             (args.limit,),
         )
         rows = cur.fetchall()
-        print(f"Candidates (published, website, no email): {len(rows)}"
+        print(f"Ceiling — {scope} with website & no email: {total_candidates}", flush=True)
+        print(f"Checking this run (limit {args.limit}): {len(rows)}"
               f"{'' if args.apply else ' — DRY RUN'}", flush=True)
 
         found = updated = 0
