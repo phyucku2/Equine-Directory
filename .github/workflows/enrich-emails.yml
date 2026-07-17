@@ -17,6 +17,11 @@ on:
         type: choice
         options: [dry-run, apply]
         default: dry-run
+      scope:
+        description: "published = live listings only · all = whole DB (true ceiling incl. unpublished)"
+        type: choice
+        options: [published, all]
+        default: published
       limit:
         description: "Max businesses to check (highest review-count first)"
         type: string
@@ -54,11 +59,13 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           IN_APPLY: ${{ inputs.apply }}
+          IN_SCOPE: ${{ inputs.scope }}
           IN_LIMIT: ${{ inputs.limit }}
           IN_WORKERS: ${{ inputs.workers }}
         run: |
           set -euo pipefail
           args="--limit $IN_LIMIT --workers $IN_WORKERS"
           [ "$IN_APPLY" = "apply" ] && args="$args --apply"
+          [ "$IN_SCOPE" = "all" ] && args="$args --include-unpublished"
           echo "Running: python enrich_emails.py $args"
           python enrich_emails.py $args
