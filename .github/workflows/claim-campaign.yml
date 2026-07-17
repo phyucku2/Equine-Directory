@@ -1,0 +1,84 @@
+name: Claim-listing campaign (email unclaimed barns)
+
+# Sends the "claim your free listing" outreach to published, UNCLAIMED barns we
+# have an email for. DRY RUN by default — nothing sends without apply=apply.
+# Cold-ish outreach, so it is throttled and warm-up-friendly: start with a small
+# limit (a few hundred/day) and grow it as the sending domain's reputation holds.
+#
+# Prerequisites (repo secrets/vars):
+#   DATABASE_URL                         — always
+#   UNSUBSCRIBE_SECRET                   — always; signs unsub links. Set the SAME
+#                                          value in Vercel so the site can verify
+#                                          them. (Falls back to AUTH_SECRET.)
+#   RESEND_API_KEY, EMAIL_FROM           — required to send (apply)
+#   CAMPAIGN_REPLY_TO                     — inbox replies go to (e.g. your Gmail);
+#                                          unset → replies bounce (receiving off)
+#   CAMPAIGN_POSTAL_ADDRESS              — required to send (CAN-SPAM postal line)
+#   NEXT_PUBLIC_BASE_URL                 — site origin for claim/unsub links
+#
+# Best run when no enrichment/crawl ingest is active. Send FROM a subdomain
+# (e.g. mail.thestabledirectory.com) so a cold-email reputation hit can't take
+# down transactional mail on the root domain.
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "dry-run = preview recipients · apply = actually send"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      limit:
+        description: "Max barns to email this run (warm-up: keep small)"
+        type: string
+        default: "200"
+      delay_ms:
+        description: "Delay between sends, ms (pacing / reputation)"
+        type: string
+        default: "500"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: claim-campaign
+  cancel-in-progress: false
+
+jobs:
+  campaign:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - run: npm ci
+      - run: npx prisma generate
+
+      - name: Send claim campaign
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          UNSUBSCRIBE_SECRET: ${{ secrets.UNSUBSCRIBE_SECRET }}
+          AUTH_SECRET: ${{ secrets.AUTH_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+          CAMPAIGN_REPLY_TO: ${{ secrets.CAMPAIGN_REPLY_TO }}
+          CAMPAIGN_POSTAL_ADDRESS: ${{ secrets.CAMPAIGN_POSTAL_ADDRESS }}
+          NEXT_PUBLIC_BASE_URL: ${{ vars.NEXT_PUBLIC_BASE_URL || 'https://thestabledirectory.com' }}
+          IN_APPLY: ${{ inputs.apply }}
+          IN_LIMIT: ${{ inputs.limit }}
+          IN_DELAY: ${{ inputs.delay_ms }}
+        run: |
+          set -euo pipefail
+          args="--limit $IN_LIMIT --delay-ms $IN_DELAY"
+          [ "$IN_APPLY" = "apply" ] && args="$args --apply"
+          echo "Running: tsx scripts/send-claim-campaign.ts $args"
+          npx tsx scripts/send-claim-campaign.ts $args

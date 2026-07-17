@@ -1,0 +1,64 @@
+name: Enrich business emails (scrape from stored websites)
+
+# The gmaps crawl captured websites but not emails (Google Maps doesn't expose
+# them). This backfills Business.email by fetching each business's own website
+# and pulling a contact address — so the claim-invite / owner-alert emails have
+# somewhere to send. Only touches published rows that have a website and no
+# email, so it's safe to re-run and never overwrites an owner-entered address.
+#
+# Prerequisites: DATABASE_URL secret. Runs on its own concurrency group; best
+# run when no national-crawl ingest is active (both write Business rows).
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "dry-run = preview found emails · apply = write them"
+        type: choice
+        options: [dry-run, apply]
+        default: dry-run
+      limit:
+        description: "Max businesses to check (highest review-count first)"
+        type: string
+        default: "3000"
+      workers:
+        description: "Concurrent website fetches"
+        type: string
+        default: "8"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enrich-emails
+  cancel-in-progress: false
+
+jobs:
+  enrich:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: crawler
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install crawler dependencies
+        run: pip install -r requirements.txt
+
+      - name: Enrich emails
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          IN_APPLY: ${{ inputs.apply }}
+          IN_LIMIT: ${{ inputs.limit }}
+          IN_WORKERS: ${{ inputs.workers }}
+        run: |
+          set -euo pipefail
+          args="--limit $IN_LIMIT --workers $IN_WORKERS"
+          [ "$IN_APPLY" = "apply" ] && args="$args --apply"
+          echo "Running: python enrich_emails.py $args"
+          python enrich_emails.py $args

@@ -99,8 +99,21 @@ _NONBARN_TEXT_KEYWORDS = (
 _SOFT_NONBARN = {"school", "college", "university"}
 _EQUINE_SIGNALS = ("horse", "equestrian", "stable", "pony", "paddock", "dressage", "riding")
 
+# Screened against the business NAME (not just the Google category label): a
+# church or equipment dealer often carries a boarding-ish category, so the
+# category screen above misses it and it slips into the review queue. These
+# tokens in a name reliably mean "not a boarding barn" (owner request
+# 2026-07-17). Mirrors the web read-side NON_BARN_NAME_KEYWORDS. Substring match,
+# so "church" also catches "Churchill" — accepted, reversible tradeoff; here it
+# only routes to review (grade UNSURE), never a hard delete.
+_NONBARN_NAME_KEYWORDS = ("church", "equipment")
+
 
 def _is_nonbarn_text(category: str | None, name: str | None = None) -> bool:
+    if name:
+        nl = name.lower()
+        if any(k in nl for k in _NONBARN_NAME_KEYWORDS):
+            return True
     if not category:
         return False
     c = " " + category.lower() + " "
