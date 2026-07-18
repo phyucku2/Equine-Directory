@@ -144,6 +144,58 @@ export async function sendClaimInviteForInquiry(
   });
 }
 
+/**
+ * Operator alert: a lead just arrived for a barn — sent to YOU (the operator),
+ * not the barn. Most barns are phone-only (no email), so the automated
+ * claim-invite can't reach them; instead this hands you the barn's phone and
+ * claim link so you can personally text them to claim and respond. This is the
+ * manual, one-to-one, consent-safe "concierge" version of the outreach — no
+ * GHL, no A2P, no cold blasting. Fires for every inquiry so no lead is missed.
+ */
+export async function sendOperatorInquiryAlert(
+  toOperator: string,
+  args: {
+    businessName: string;
+    businessPhone?: string | null;
+    businessLocation?: string | null;
+    claimUrl: string;
+    isClaimed: boolean;
+    fromName: string;
+    fromEmail: string;
+    fromPhone?: string | null;
+    message: string;
+  },
+): Promise<void> {
+  const phoneLine = args.businessPhone
+    ? `<a href="tel:${escapeHtml(args.businessPhone)}">${escapeHtml(args.businessPhone)}</a>`
+    : "<em>no phone on file</em>";
+  await send({
+    to: toOperator,
+    replyTo: args.fromEmail,
+    subject: `New lead for ${args.businessName}${args.isClaimed ? "" : " (unclaimed — text them!)"}`,
+    html: `
+      <p><strong>${escapeHtml(args.businessName)}</strong>${
+        args.businessLocation ? ` — ${escapeHtml(args.businessLocation)}` : ""
+      } just got an inquiry on The Stable Directory.</p>
+      <p><strong>Barn phone:</strong> ${phoneLine}${
+        args.isClaimed ? " · <em>(already claimed)</em>" : ""
+      }</p>
+      <p><strong>Claim link to send them:</strong> <a href="${args.claimUrl}">${args.claimUrl}</a></p>
+      <hr />
+      <p><strong>The inquiry (from a horse owner):</strong></p>
+      <p>${escapeHtml(args.fromName)} (${escapeHtml(args.fromEmail)})${
+        args.fromPhone ? ` · ${escapeHtml(args.fromPhone)}` : ""
+      }</p>
+      <blockquote>${escapeHtml(args.message)}</blockquote>
+      <p style="color:#888;font-size:12px">Tip: text the barn — "Hi ${escapeHtml(
+        args.businessName,
+      )}, someone just reached out to you on The Stable Directory. Claim your free page to read it and reply: ${
+        args.claimUrl
+      }"</p>
+    `,
+  });
+}
+
 /** Send a saved-search digest of newly matching stables to a consumer. */
 export async function sendSavedSearchDigest(
   toEmail: string,

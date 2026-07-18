@@ -79,8 +79,9 @@ def main() -> None:
                 where = f'b."isPublished" = true AND {where}'
             cur.execute(
                 f"""
-                SELECT b.name, b.phone, b.city, b.address, b.slug, b."isPublished"
+                SELECT b.name, b.phone, l.name AS city, b.address, b.slug, b."isPublished"
                 FROM "Business" b
+                LEFT JOIN "Location" l ON l.id = b."locationId"
                 WHERE {where}
                 ORDER BY b."reviewCount" DESC NULLS LAST
                 """
