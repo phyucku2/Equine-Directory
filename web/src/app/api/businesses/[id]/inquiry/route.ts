@@ -3,13 +3,20 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createInquiry } from "@/lib/db/inquiry";
 import { getEntitlements } from "@/lib/entitlements";
-import { sendOwnerInquiryAlert, sendClaimInviteForInquiry } from "@/lib/email";
+import { sendOwnerInquiryAlert, sendClaimInviteForInquiry, sendOperatorInquiryAlert } from "@/lib/email";
 import { checkRateLimit } from "@/lib/ratelimit";
 import { absoluteUrl } from "@/lib/urls";
 
 // Don't re-email an unclaimed barn about waiting inquiries more than once per
 // this window — a barn that gets several leads should get one nudge, not a burst.
 const CLAIM_INVITE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Operator alerts go here so you can personally text the barn to claim. Defaults
+// to the first ADMIN_EMAILS entry when OPS_ALERT_EMAIL isn't set.
+const OPS_ALERT_EMAIL =
+  process.env.OPS_ALERT_EMAIL ??
+  (process.env.ADMIN_EMAILS ?? "").split(",")[0]?.trim() ??
+  "";
 
 // POST /api/businesses/[id]/inquiry — send a lead to a barn (M6 / §3).
 // Mirrors the claim route: guests are allowed; when signed in we auto-fill
@@ -123,6 +130,24 @@ export async function POST(
       details: { inquiryId: result.inquiry.id, userId, delivered, invited },
     },
   });
+
+  // Operator concierge alert: notify YOU on every lead with the barn's phone +
+  // claim link, so you can personally text an (unclaimed, phone-only) barn to
+  // claim and reply. This is the no-GHL, consent-safe way to start converting
+  // barns — a manual one-to-one text off a real inbound lead.
+  if (OPS_ALERT_EMAIL) {
+    await sendOperatorInquiryAlert(OPS_ALERT_EMAIL, {
+      businessName: result.business.name,
+      businessPhone: result.business.phone,
+      businessLocation: result.business.address,
+      claimUrl: absoluteUrl(`/business/${result.business.slug}/claim`),
+      isClaimed: result.isClaimed,
+      fromName: name,
+      fromEmail: email,
+      fromPhone: phone,
+      message,
+    });
+  }
 
   // Report delivery honestly so the form can set the right expectation: a
   // claimed barn replies by email; an unclaimed one has been invited to join.

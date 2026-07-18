@@ -21,6 +21,10 @@ export interface CreateInquiryResult {
     slug: string;
     name: string;
     email: string | null;
+    // barn phone/address so the operator alert can text the barn to claim (most
+    // barns are phone-only — no email — so this is the practical claim driver).
+    phone: string | null;
+    address: string;
     // Loaded so the caller can gate lead *delivery* on entitlements
     // (canReceiveLeads is BASIC+). The lead is always stored regardless.
     subscription: { tier: SubTier; status: string; trainerSeats: number } | null;
@@ -48,6 +52,8 @@ export async function createInquiry(
       slug: true,
       name: true,
       email: true,
+      phone: true,
+      address: true,
       subscription: { select: { tier: true, status: true, trainerSeats: true } },
       _count: { select: { owners: true } },
     },
