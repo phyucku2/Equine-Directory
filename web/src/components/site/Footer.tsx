@@ -38,8 +38,11 @@ export function Footer() {
           <NewsletterSignup source="footer" />
         </div>
       </div>
-      <div className="border-t border-leather/15 py-4 text-center text-xs text-ink/40">
-        © {new Date().getFullYear()} {SITE.name}
+      <div className="flex flex-col items-center gap-1 border-t border-leather/15 py-4 text-center text-xs text-ink/40 sm:flex-row sm:justify-center sm:gap-4">
+        <span>© {new Date().getFullYear()} {SITE.name}</span>
+        <Link href="/about" className="hover:text-brass">About</Link>
+        <Link href="/contact" className="hover:text-brass">Contact</Link>
+        <Link href="/privacy" className="hover:text-brass">Privacy Policy</Link>
       </div>
     </footer>
   );
