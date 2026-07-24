@@ -7,7 +7,12 @@ import { getEventsForSitemap } from "@/lib/db/events";
 import { getCategoryStateCombos } from "@/lib/db/intent";
 import { GUIDES } from "@/lib/guides";
 
-export const revalidate = 86400;
+// 1h, not 24h: the sitemap function catches DB errors and returns an EMPTY
+// urlset (so a build with a cold/unreachable DB doesn't hard-fail). With a 24h
+// revalidate that empty result got cached for a full day — during the Neon
+// pause every sub-sitemap served 0 URLs to Google long after the DB recovered.
+// A short window means any such poisoning self-heals within the hour.
+export const revalidate = 3600;
 
 // Split sitemaps: /sitemap.xml is the index, sub-sitemaps at /sitemap/<id>.xml.
 export async function generateSitemaps() {
