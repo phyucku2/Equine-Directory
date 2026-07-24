@@ -1,0 +1,37 @@
+name: DB whoami (confirm which Neon endpoint we connect to)
+
+# Diagnostic only: prints the HOST / db / user of the working DATABASE_URL
+# secret (never the password) so we can confirm which Neon project/account the
+# production database lives in. Read-only; runs no queries.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  whoami:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Show connection endpoint (no password)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python3 - <<'PY'
+          import os, urllib.parse as up
+          raw = os.environ.get("DATABASE_URL", "")
+          if not raw:
+              print("DATABASE_URL secret is EMPTY"); raise SystemExit(0)
+          p = up.urlparse(raw)
+          host = p.hostname or "?"
+          print("scheme   :", p.scheme)
+          print("DB_HOST  :", host)
+          print("DB_PORT  :", p.port)
+          print("DB_NAME  :", (p.path or "").lstrip("/"))
+          print("DB_USER  :", p.username)
+          print("pooled?  :", "YES (-pooler present)" if "-pooler" in host else "NO (direct endpoint)")
+          # Neon endpoint id + region identify the project/account:
+          print("endpoint :", host.split(".")[0] if host != "?" else "?")
+          print("region   :", ".".join(host.split(".")[1:3]) if host.count(".") >= 2 else "?")
+          PY
