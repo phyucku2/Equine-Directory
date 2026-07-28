@@ -13,12 +13,17 @@ on:
   workflow_dispatch:
     inputs:
       export:
-        description: "csv = also produce a downloadable CSV of unclaimed-with-phone barns"
+        description: "csv = also produce a single downloadable CSV of unclaimed-with-phone barns"
         type: choice
         options: [counts-only, csv]
         default: counts-only
+      split:
+        description: "also split the export into one CSV per timezone region or per state"
+        type: choice
+        options: [none, region, state]
+        default: none
       published_only:
-        description: "restrict the CSV export to published (live) listings"
+        description: "restrict the export to published (live) listings"
         type: boolean
         default: false
 
@@ -50,11 +55,13 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           IN_EXPORT: ${{ inputs.export }}
+          IN_SPLIT: ${{ inputs.split }}
           IN_PUBLISHED_ONLY: ${{ inputs.published_only }}
         run: |
           set -euo pipefail
           args=""
           [ "$IN_EXPORT" = "csv" ] && args="--export audience.csv"
+          [ "$IN_SPLIT" != "none" ] && args="$args --split $IN_SPLIT --split-dir audience_split"
           [ "$IN_PUBLISHED_ONLY" = "true" ] && args="$args --published-only"
           echo "Running: python audience_stats.py $args"
           python audience_stats.py $args
@@ -65,4 +72,12 @@ jobs:
         with:
           name: audience-csv
           path: crawler/audience.csv
+          if-no-files-found: warn
+
+      - name: Upload split audience CSVs
+        if: ${{ inputs.split != 'none' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: audience-split-${{ inputs.split }}
+          path: crawler/audience_split/
           if-no-files-found: warn
