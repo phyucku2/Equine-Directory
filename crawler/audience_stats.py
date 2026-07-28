@@ -8,14 +8,17 @@ outreach before paying for it. Read-only counts; optional CSV export of the
 reachable, unclaimed audience for import into an outreach tool.
 
 Usage (crawler folder; DATABASE_URL set):
-  python audience_stats.py                     # print the breakdown
-  python audience_stats.py --export out.csv    # + write unclaimed-with-phone CSV
+  python audience_stats.py                        # print the breakdown
+  python audience_stats.py --export out.csv       # + write one unclaimed-with-phone CSV
+  python audience_stats.py --split region         # + one CSV per timezone region
+  python audience_stats.py --split state          # + one CSV per state
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 
 from dotenv import load_dotenv
@@ -47,6 +50,41 @@ CATEGORY_LABELS = {
     "tack-shop": "tack",
 }
 
+# US states → predominant timezone, for splitting the outreach list so each
+# batch can be sent during that region's daytime and inside TCPA quiet-hours
+# (no texts before 8am / after 9pm LOCAL time). A few states straddle a zone
+# boundary (e.g. KY, TN, FL panhandle) — each is filed under the zone holding
+# most of its population. Keyed by lowercase full state name (that's how the
+# state Location is stored).
+REGION_ORDER = ["eastern", "central", "mountain", "pacific", "alaska-hawaii-other"]
+_REGION_STATES = {
+    "eastern": [
+        "connecticut", "delaware", "florida", "georgia", "indiana", "kentucky",
+        "maine", "maryland", "massachusetts", "michigan", "new hampshire",
+        "new jersey", "new york", "north carolina", "ohio", "pennsylvania",
+        "rhode island", "south carolina", "vermont", "virginia", "west virginia",
+        "district of columbia", "washington dc",
+    ],
+    "central": [
+        "alabama", "arkansas", "illinois", "iowa", "kansas", "louisiana",
+        "minnesota", "mississippi", "missouri", "nebraska", "north dakota",
+        "oklahoma", "south dakota", "tennessee", "texas", "wisconsin",
+    ],
+    "mountain": [
+        "arizona", "colorado", "idaho", "montana", "new mexico", "utah", "wyoming",
+    ],
+    "pacific": ["california", "nevada", "oregon", "washington"],
+    "alaska-hawaii-other": ["alaska", "hawaii"],
+}
+STATE_REGION = {
+    state: region for region, states in _REGION_STATES.items() for state in states
+}
+
+
+def region_for(state_name: str | None) -> str:
+    """Map a state name to its outreach region; unknown/blank → catch-all."""
+    return STATE_REGION.get((state_name or "").strip().lower(), "alaska-hawaii-other")
+
 
 def category_membership_sql(alias: str = "bc") -> str:
     return (
@@ -67,6 +105,11 @@ def main() -> None:
     ap.add_argument("--categories",
                     default="horse-boarding,equine-veterinarian,farrier,feed-forage",
                     help="comma-separated category slugs to include (default: barns, vets, farriers, feed)")
+    ap.add_argument("--split", choices=["none", "region", "state"], default="none",
+                    help="split the export into one CSV per timezone region or per state "
+                         "(written into --split-dir); requires --export as the dir/base name")
+    ap.add_argument("--split-dir", default="audience_split",
+                    help="output directory for --split files (default: audience_split)")
     args = ap.parse_args()
     target_slugs = [s.strip() for s in args.categories.split(",") if s.strip()]
 
@@ -113,7 +156,7 @@ def main() -> None:
             label = CATEGORY_LABELS.get(slug, slug)
             print(f"  {label:<12}{cur.fetchone()[0]:>8}  ({slug})")
 
-        if args.export:
+        if args.export or args.split != "none":
             where = f"{HAS_PHONE} AND {UNCLAIMED} AND {category_membership_sql()}"
             if args.published_only:
                 where = f'b."isPublished" = true AND {where}'
@@ -147,15 +190,54 @@ def main() -> None:
                         seen.append(lab)
                 return ",".join(seen)
 
-            with open(args.export, "w", newline="", encoding="utf-8") as f:
-                w = csv.writer(f)
-                w.writerow(["name", "phone", "category", "city", "state", "address", "claim_url", "published"])
-                for name, phone, city, state, address, slug, is_pub, cat_slugs in rows:
-                    w.writerow([name, phone, labels(cat_slugs), city or "", state or "",
-                                address or "", f"{BASE_URL}/business/{slug}/claim",
-                                "yes" if is_pub else "no"])
-            print(f"\nExported {len(rows)} unclaimed-with-phone businesses "
-                  f"[{args.categories}] → {args.export}")
+            HEADER = ["name", "phone", "category", "city", "state", "address", "claim_url", "published"]
+
+            def to_row(rec) -> list:
+                name, phone, city, state, address, slug, is_pub, cat_slugs = rec
+                return [name, phone, labels(cat_slugs), city or "", state or "",
+                        address or "", f"{BASE_URL}/business/{slug}/claim",
+                        "yes" if is_pub else "no"]
+
+            def write_csv(path: str, recs: list) -> None:
+                with open(path, "w", newline="", encoding="utf-8") as f:
+                    w = csv.writer(f)
+                    w.writerow(HEADER)
+                    for rec in recs:
+                        w.writerow(to_row(rec))
+
+            # state index in each fetched record (name, phone, city, STATE, ...)
+            def state_of(rec) -> str | None:
+                return rec[3]
+
+            if args.split == "none":
+                write_csv(args.export, rows)
+                print(f"\nExported {len(rows)} unclaimed-with-phone businesses "
+                      f"[{args.categories}] → {args.export}")
+            else:
+                import os
+                os.makedirs(args.split_dir, exist_ok=True)
+                buckets = {}
+                if args.split == "region":
+                    for rec in rows:
+                        buckets.setdefault(region_for(state_of(rec)), []).append(rec)
+                    order = REGION_ORDER
+                else:  # state
+                    for rec in rows:
+                        key = (state_of(rec) or "unknown").strip().lower().replace(" ", "-") or "unknown"
+                        buckets.setdefault(key, []).append(rec)
+                    order = sorted(buckets)
+                print(f"\n── export split by {args.split} → {args.split_dir}/ ──")
+                total = 0
+                for key in order:
+                    recs = buckets.get(key, [])
+                    if not recs:
+                        continue
+                    path = os.path.join(args.split_dir, f"{key}.csv")
+                    write_csv(path, recs)
+                    total += len(recs)
+                    print(f"  {key:<22}{len(recs):>8}  → {path}")
+                print(f"  {'TOTAL':<22}{total:>8}  across {sum(1 for k in order if buckets.get(k))} files "
+                      f"[{args.categories}]")
 
 
 if __name__ == "__main__":
