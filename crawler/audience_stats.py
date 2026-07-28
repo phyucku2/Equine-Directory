@@ -33,14 +33,42 @@ HAS_PHONE = "b.phone IS NOT NULL AND b.phone <> ''"
 HAS_EMAIL = "b.email IS NOT NULL AND b.email <> ''"
 HAS_WEBSITE = "b.website IS NOT NULL AND b.website <> ''"
 
+# A category assignment counts only when publicly approved.
+CAT_APPROVED = "bc.\"reviewStatus\" IN ('AUTO_APPROVED', 'APPROVED')"
+
+# Map a category slug to a plain label for the CSV / segmentation.
+CATEGORY_LABELS = {
+    "horse-boarding": "barn",
+    "equine-veterinarian": "vet",
+    "farrier": "farrier",
+    "feed-forage": "feed",
+    "training-facilities": "training",
+    "trainer-instructor": "training",
+    "tack-shop": "tack",
+}
+
+
+def category_membership_sql(alias: str = "bc") -> str:
+    return (
+        f'EXISTS (SELECT 1 FROM "BusinessCategory" {alias} '
+        f'JOIN "Category" c ON c.id = {alias}."categoryId" '
+        f'WHERE {alias}."businessId" = b.id '
+        f'AND {alias}."reviewStatus" IN (\'AUTO_APPROVED\', \'APPROVED\') '
+        f'AND c.slug = ANY(%(slugs)s))'
+    )
+
 
 def main() -> None:
     load_dotenv()
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--export", metavar="CSV", help="write unclaimed-with-phone barns to this CSV path")
+    ap.add_argument("--export", metavar="CSV", help="write unclaimed-with-phone businesses to this CSV path")
     ap.add_argument("--published-only", action="store_true",
                     help="restrict export to published (live) listings")
+    ap.add_argument("--categories",
+                    default="horse-boarding,equine-veterinarian,farrier,feed-forage",
+                    help="comma-separated category slugs to include (default: barns, vets, farriers, feed)")
     args = ap.parse_args()
+    target_slugs = [s.strip() for s in args.categories.split(",") if s.strip()]
 
     with connect() as conn, conn.cursor() as cur:
         def n(where: str) -> int:
@@ -73,27 +101,61 @@ def main() -> None:
         print(f"  Unclaimed + phone (all)      {reachable:>8}   <- SMS/voice ceiling")
         print(f"  Unclaimed + phone (published){reachable_pub:>8}   <- safest to start")
 
+        print("  ── unclaimed + phone, by requested category ──")
+        for slug in target_slugs:
+            cur.execute(
+                f'SELECT count(DISTINCT b.id) FROM "Business" b '
+                f'WHERE {HAS_PHONE} AND {UNCLAIMED} AND '
+                f'EXISTS (SELECT 1 FROM "BusinessCategory" bc JOIN "Category" c ON c.id = bc."categoryId" '
+                f'WHERE bc."businessId" = b.id AND {CAT_APPROVED} AND c.slug = %s)',
+                (slug,),
+            )
+            label = CATEGORY_LABELS.get(slug, slug)
+            print(f"  {label:<12}{cur.fetchone()[0]:>8}  ({slug})")
+
         if args.export:
-            where = f"{HAS_PHONE} AND {UNCLAIMED}"
+            where = f"{HAS_PHONE} AND {UNCLAIMED} AND {category_membership_sql()}"
             if args.published_only:
                 where = f'b."isPublished" = true AND {where}'
             cur.execute(
                 f"""
-                SELECT b.name, b.phone, l.name AS city, b.address, b.slug, b."isPublished"
+                SELECT b.name, b.phone, l.name AS city, st.name AS state, b.address,
+                       b.slug, b."isPublished",
+                       (SELECT string_agg(DISTINCT c.slug, ',')
+                          FROM "BusinessCategory" bc
+                          JOIN "Category" c ON c.id = bc."categoryId"
+                          WHERE bc."businessId" = b.id AND {CAT_APPROVED}
+                            AND c.slug = ANY(%(slugs)s)) AS cat_slugs
                 FROM "Business" b
-                LEFT JOIN "Location" l ON l.id = b."locationId"
+                LEFT JOIN "Location" l  ON l.id  = b."locationId"
+                LEFT JOIN "Location" co ON co.id = l."parentId"
+                LEFT JOIN "Location" st ON st.id = co."parentId"
                 WHERE {where}
                 ORDER BY b."reviewCount" DESC NULLS LAST
-                """
+                """,
+                {"slugs": target_slugs},
             )
             rows = cur.fetchall()
+
+            def labels(cat_slugs: str | None) -> str:
+                if not cat_slugs:
+                    return ""
+                seen: list[str] = []
+                for s in cat_slugs.split(","):
+                    lab = CATEGORY_LABELS.get(s, s)
+                    if lab not in seen:
+                        seen.append(lab)
+                return ",".join(seen)
+
             with open(args.export, "w", newline="", encoding="utf-8") as f:
                 w = csv.writer(f)
-                w.writerow(["name", "phone", "city", "address", "claim_url", "published"])
-                for name, phone, city, address, slug, is_pub in rows:
-                    w.writerow([name, phone, city or "", address or "",
-                                f"{BASE_URL}/business/{slug}/claim", "yes" if is_pub else "no"])
-            print(f"\nExported {len(rows)} unclaimed-with-phone barns → {args.export}")
+                w.writerow(["name", "phone", "category", "city", "state", "address", "claim_url", "published"])
+                for name, phone, city, state, address, slug, is_pub, cat_slugs in rows:
+                    w.writerow([name, phone, labels(cat_slugs), city or "", state or "",
+                                address or "", f"{BASE_URL}/business/{slug}/claim",
+                                "yes" if is_pub else "no"])
+            print(f"\nExported {len(rows)} unclaimed-with-phone businesses "
+                  f"[{args.categories}] → {args.export}")
 
 
 if __name__ == "__main__":
