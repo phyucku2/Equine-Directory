@@ -21,12 +21,24 @@ function resolveDatabaseUrl(): string | undefined {
   try {
     const u = new URL(raw);
     const p = u.searchParams;
-    if (!p.has("connection_limit")) p.set("connection_limit", "1");
-    if (!p.has("pool_timeout")) p.set("pool_timeout", "20");
-    if (!p.has("connect_timeout")) p.set("connect_timeout", "15");
-    // Neon's pooled endpoint runs PgBouncer in transaction mode — Prisma must
-    // disable prepared statements against it.
-    if (u.hostname.includes("-pooler") && !p.has("pgbouncer")) p.set("pgbouncer", "true");
+    const pooled = u.hostname.includes("-pooler");
+    // Two very different regimes:
+    //  • Pooled (Neon -pooler / PgBouncer): the pooler fans thousands of client
+    //    connections into a small server pool, so a per-instance limit of 1 is
+    //    needlessly strict — it SERIALIZES a page's Promise.all() queries and
+    //    makes concurrent requests on a warm instance queue until pool_timeout,
+    //    which then overruns Vercel's function limit and surfaces as a 5xx to
+    //    Googlebot (the mass "Server error (5xx)" in Search Console). Allow a
+    //    handful of connections so parallel queries actually parallelize, and
+    //    fail fast (short pool_timeout) so a blip becomes a quick error the
+    //    request/ISR can recover from rather than a hung 5xx.
+    //  • Direct endpoint (no pooler): keep the conservative serverless default
+    //    of 1 so many function instances don't blow Neon's raw connection cap.
+    if (!p.has("connection_limit")) p.set("connection_limit", pooled ? "5" : "1");
+    if (!p.has("pool_timeout")) p.set("pool_timeout", pooled ? "10" : "20");
+    if (!p.has("connect_timeout")) p.set("connect_timeout", pooled ? "10" : "15");
+    // PgBouncer runs in transaction mode — Prisma must disable prepared statements.
+    if (pooled && !p.has("pgbouncer")) p.set("pgbouncer", "true");
     return u.toString();
   } catch {
     return raw; // non-URL (shouldn't happen) — leave as-is
