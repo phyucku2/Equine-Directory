@@ -7,7 +7,6 @@ import { getStatesForCategory } from "@/lib/db/intent";
 import { categoryUrl, categoryStateUrl, absoluteUrl } from "@/lib/urls";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { BusinessCard } from "@/components/business/BusinessCard";
-import { Pagination } from "@/components/Pagination";
 import { JsonLd } from "@/components/JsonLd";
 import { collectionLd, faqLd } from "@/lib/seo/jsonld";
 import { categoryCopy } from "@/lib/seo/copy";
@@ -42,24 +41,30 @@ export async function generateMetadata({
   };
 }
 
+// No searchParams here: this route sets `revalidate` + `generateStaticParams`
+// (ISR/static intent), and in this Next version reading the request-time
+// `searchParams` API inside such a route throws on every on-demand render — so
+// this national hub 500'd for EVERY category, and being in the sitemap it fed
+// Google's "Server error (5xx)" bucket. (The sibling [category]/[state] and
+// [category]/[state]/[city] routes carry the same note; this hub was the one
+// that never got the fix. The DB queries were fine — verified via diagnostic —
+// the crash was purely the searchParams-in-ISR conflict.) The canonical always
+// pointed at page 1, so query pagination bought no SEO; the by-state mesh below
+// carries the long tail.
 export default async function CategoryPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ category: string }>;
-  searchParams: Promise<{ page?: string }>;
 }) {
   const { category } = await params;
-  const { page: pageParam } = await searchParams;
   // Hide non-catalog category hubs (their data stays in the DB).
   if (!isPublicCategorySlug(category)) notFound();
   const cat = await getCategoryBySlug(category);
   if (!cat) notFound();
 
-  const page = Math.max(1, Number(pageParam) || 1);
   const [results, states] = await Promise.all([
-    getByCategory(category, page),
-    page === 1 ? getStatesForCategory(category) : Promise.resolve([]),
+    getByCategory(category, 1),
+    getStatesForCategory(category),
   ]);
   const copy = categoryCopy(category);
 
@@ -96,7 +101,16 @@ export default async function CategoryPage({
               <BusinessCard key={b.id} business={b} />
             ))}
           </div>
-          <Pagination basePath={categoryUrl(cat.slug)} page={results.page} totalPages={results.totalPages} />
+          {results.totalPages > 1 && (
+            <p className="mt-6 text-sm text-ink/55">
+              Showing the first {results.items.length} of {results.total} — browse by state
+              below or{" "}
+              <Link href="/map" className="text-brass hover:underline">
+                open the map
+              </Link>{" "}
+              for every listing.
+            </p>
+          )}
         </>
       )}
 
